@@ -1,23 +1,115 @@
 module Main where
 
 import Prelude
-import Data.Array (reverse)
+
+import Effect.Aff (makeAff)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
+import Data.Array (concatMap, sort)
 import Effect (Effect)
-import Effect.Console (logShow)
-import Node.Yargs.Applicative (flag, yarg, runY)
+import Effect.Console (logShow, log, error)
+import Node.Buffer as Buffer
+import Node.ChildProcess (Exit(..), spawn, defaultSpawnOptions, onExit, stdout, stderr)
+import Node.Encoding (Encoding(UTF8))
+import Node.Path (FilePath)
+import Node.Stream (onData)
+import Node.Yargs.Applicative (yarg, runY)
 import Node.Yargs.Setup (example, usage)
 
-app :: Array String -> Boolean -> Effect Unit
-app [] _     = pure unit
-app ss false = logShow ss
-app ss true  = logShow (reverse ss)
+--|
+--| LIBRARY
+--|
+
+type Name = String
+
+data Target =
+  Executable
+  { name :: Name
+  , sources :: Array FilePath
+  }
+
+executable :: Name -> Array FilePath -> Maybe Target
+executable name sources = Just $ Executable { name: name, sources: sources }
+
+--|
+--| LIBRARY
+--|
+
+class CompilerArg a where
+  expand :: a -> Array String
+  expandAll :: Array a -> Array String
+
+type Toolchain c r = CompilerArg c =>
+                     { executable :: FilePath
+                     , defaultArgs :: Array c | r}
+
+newtype CompileDefinition = CompileDefinition 
+                         { dummy :: Int
+                         }
+
+compile :: forall c r. CompilerArg c => Toolchain c r -> Array c -> Effect Unit
+compile toolchain extraArgs = do
+  let args = toolchain.defaultArgs <> extraArgs
+  logShow $ expandAll args
+  ls <- spawn toolchain.executable (expandAll args) defaultSpawnOptions
+
+  onData (stdout ls) (Buffer.toString UTF8 >=> log)
+  onData (stderr ls) (Buffer.toString UTF8 >=> error)
+
+  onExit ls \exit -> case exit of
+    Normally 0 -> pure unit
+    _ -> pure unit
+
+--|
+--| Gcc
+--|
+
+data GccArg = Output FilePath | IncludeDirectory FilePath | LibraryDirectory FilePath | DontLink | Source FilePath
+derive instance instanceEqGccArg :: Eq GccArg
+derive instance instanceOrdGccArg :: Ord GccArg
+
+instance expandGccArg :: CompilerArg GccArg where
+  expand arg = case arg of
+    (Output path)           -> ["-o", path]
+    (Source path)           -> [path]
+    (IncludeDirectory path) -> ["-I", path]
+    (LibraryDirectory path) -> ["-L", path]
+    (DontLink)              -> ["-c"]
+  expandAll args = concatMap expand (sort args)
+
+gccDefaultExecutable :: FilePath
+gccDefaultExecutable = "/sbin/g++"
+
+gccDefaultArgs :: Array GccArg
+gccDefaultArgs = [DontLink]
+
+gccToolchain :: { executable :: FilePath, defaultArgs :: Array GccArg}
+gccToolchain = { executable: gccDefaultExecutable, defaultArgs: gccDefaultArgs}
+
+
+-- gccDefaultArgs = expandAll [DontLink]
+
+-- type GccToolchain = Toolchain { test :: Int }
+-- gcc :: GccToolchain
+-- gcc = { executable: "/sbin/g++", args: expandAll [DontLink], test: 1 }
+
+--|
+--| APPLICATION
+--|
+
+myapp = executable "myapp" ["test.cpp"]
+
+app :: Array String -> String -> Effect Unit
+app [] _ = pure unit
+app files _ = logShow files
+app files _ = logShow files
 
 main :: Effect Unit
 main = do
-  let setup = usage "$0 -w Word1 -w Word2" <> example "$0 -w Hello -w World" "Say hello!"
+  let setup = usage "$0 -f makefun-file" <> example "$0 -f myproject.makefun" "Say hello!"
   runY setup
     $ app
-    <$> yarg "w" ["word"] (Just "A word") (Right "At least one word is required") false
-    <*> flag "r" [] (Just "Reverse the words")
+    <$> yarg "f" ["file"] (Just "Path to a makefun file") (Right "At least one makefun file is required") true
+    <*> yarg "t" ["toolchain"] (Just "A toolchain") (Right "At least one toolchain is required") true
+  def <- compile gccToolchain [Output "test.o", Source "test.cpp"]
+  pure unit

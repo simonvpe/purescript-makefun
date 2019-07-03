@@ -5,7 +5,14 @@ You can edit this file as you like.
 { name =
     "makefun"
 , dependencies =
-    [ "console", "effect", "psci-support", "yargs" ]
+    [ "aff"
+    , "console"
+    , "effect"
+    , "node-child-process"
+    , "node-path"
+    , "psci-support"
+    , "yargs"
+    ]
 , packages =
     ./packages.dhall
 , sources =
