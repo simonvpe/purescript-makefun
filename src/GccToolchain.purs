@@ -2,7 +2,6 @@ module GccToolchain where
 
 import Data.Array (concatMap)
 import Data.Semigroup ((<>))
-import Node.Path (FilePath)
 import Toolchain
 
 gccCompilerFlagGenerator :: CompilerFlagGenerator

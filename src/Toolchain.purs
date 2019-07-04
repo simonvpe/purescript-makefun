@@ -17,7 +17,7 @@ import Data.Array (zip, filter)
 import Node.Path (FilePath, concat)
 import Data.Traversable (sequence)
 import Data.Tuple
-import Node.FS.Sync (stat)
+import Node.FS.Sync (stat, exists)
 import Node.FS.Stats (modifiedTime)
 
 data CompilerConfiguration
@@ -82,12 +82,22 @@ compileAll toolchain spec =
   let inout = zip spec.sources $ map (outputPath spec.buildDir spec.buildExtension) spec.sources
   in sequence $ map (\x -> compile toolchain spec.compilerConfiguration (fst x) (snd x)) inout
 
+needsRecompile' :: FilePath -> String -> FilePath -> Effect Boolean
+needsRecompile' directory extension source =
+  let output = outputPath directory extension source
+  in do
+    sourceStats <- stat source
+    outputExists <- exists output
+    res <- if outputExists then
+             do
+               outputStats <- stat output
+               pure $ modifiedTime outputStats < modifiedTime sourceStats
+           else
+             do
+               pure $ true
+    pure $ res
+
 needsRecompile :: FilePath -> String -> Array FilePath -> Effect (Array FilePath)
-needsRecompile directory extension sources =
-  do
-    sourceStats <- sequence $ map stat sources
-    let sourceData = zip sources $ map modifiedTime sourceStats
-    outputStats <- sequence $ map stat $ map (outputPath directory extension) sources
-    let outputData = map modifiedTime outputStats
-    let tuples = filter (\x -> (snd (fst x)) > (snd x)) $ zip sourceData outputData
-    pure $ map (\x -> (fst (fst x))) tuples
+needsRecompile directory extension sources = do
+  indicators <- sequence $ map (needsRecompile' directory extension) sources
+  pure $ map fst $ filter snd $ zip sources indicators
