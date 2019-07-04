@@ -2,19 +2,20 @@ module Main where
 
 import Prelude
 
-import Effect.Aff (makeAff)
+import Effect.Aff (Aff(..), makeAff, launchAff_, effectCanceler)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Array (concatMap, sort)
+import Data.Posix.Signal (Signal(..))
 import Effect (Effect)
 import Effect.Console (logShow, log, error)
 import Node.Buffer as Buffer
-import Node.ChildProcess (Exit(..), spawn, defaultSpawnOptions, onExit, stdout, stderr)
+import Node.ChildProcess (Exit(..), pipe, spawn, SpawnOptions(..), defaultSpawnOptions, onExit, stdout, stderr, onError, toStandardError, kill)
 import Node.Encoding (Encoding(UTF8))
 import Node.Path (FilePath)
 import Node.Stream (onData)
-import Node.Yargs.Applicative (yarg, runY)
-import Node.Yargs.Setup (example, usage)
+-- import Node.Yargs.Applicative (yarg, runY)
+-- import Node.Yargs.Setup (example, usage)
 
 --|
 --| LIBRARY
@@ -43,23 +44,29 @@ type Toolchain c r = CompilerArg c =>
                      { executable :: FilePath
                      , defaultArgs :: Array c | r}
 
-newtype CompileDefinition = CompileDefinition 
+newtype CompileDefinition = CompileDefinition
                          { dummy :: Int
                          }
 
-compile :: forall c r. CompilerArg c => Toolchain c r -> Array c -> Effect Unit
-compile toolchain extraArgs = do
-  let args = toolchain.defaultArgs <> extraArgs
-  logShow $ expandAll args
-  ls <- spawn toolchain.executable (expandAll args) defaultSpawnOptions
-
-  onData (stdout ls) (Buffer.toString UTF8 >=> log)
-  onData (stderr ls) (Buffer.toString UTF8 >=> error)
-
-  onExit ls \exit -> case exit of
-    Normally 0 -> pure unit
-    _ -> pure unit
-
+compile :: forall c r. CompilerArg c => Toolchain c r -> Array c -> Aff (Either String String)
+compile toolchain extraArgs =
+  let
+    spawnAff :: String -> Array String -> SpawnOptions -> Aff Exit
+    spawnAff cmd args opts = makeAff \cb -> do
+      process <- spawn cmd args opts
+      onData (stdout process) (Buffer.toString UTF8 >=> log)
+      onData (stderr process) (Buffer.toString UTF8 >=> error)
+      onError process $ cb <<< Left <<< toStandardError
+      onExit process \exit -> do
+        cb <<< pure $ exit
+      pure <<< effectCanceler <<< void $ kill SIGTERM process
+    args = expandAll (toolchain.defaultArgs <> extraArgs)
+    options = defaultSpawnOptions { stdio = pipe }
+  in do
+    result <- spawnAff toolchain.executable args options
+    pure case result of
+      Normally 0 -> Right "SUCCESS"
+      _ -> Left "FAILURE"
 --|
 --| Gcc
 --|
@@ -106,10 +113,10 @@ app files _ = logShow files
 
 main :: Effect Unit
 main = do
-  let setup = usage "$0 -f makefun-file" <> example "$0 -f myproject.makefun" "Say hello!"
-  runY setup
-    $ app
-    <$> yarg "f" ["file"] (Just "Path to a makefun file") (Right "At least one makefun file is required") true
-    <*> yarg "t" ["toolchain"] (Just "A toolchain") (Right "At least one toolchain is required") true
-  def <- compile gccToolchain [Output "test.o", Source "test.cpp"]
-  pure unit
+  -- let setup = usage "$0 -f makefun-file" <> example "$0 -f myproject.makefun" "Say hello!"
+  -- runY setup
+  --   $ app
+  --   <$> yarg "f" ["file"] (Just "Path to a makefun file") (Right "At least one makefun file is required") true
+  --   <*> yarg "t" ["toolchain"] (Just "A toolchain") (Right "At least one toolchain is required") true
+  launchAff_ (compile gccToolchain [Output "test.o", Source "test.cpp"])
+
