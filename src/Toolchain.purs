@@ -4,17 +4,21 @@ import Prelude
 
 import Data.Either (Either(..))
 import Data.Posix.Signal (Signal(..))
+import Data.JSDate
 import Effect.Aff (Aff, effectCanceler, makeAff)
-import Effect.Console (log, error)
+import Effect.Console (log, error, logShow)
+import Effect (Effect)
 import Node.Buffer as Buffer
 import Node.ChildProcess (Exit(..), SpawnOptions, pipe, spawn, defaultSpawnOptions, onExit, stdout, stderr, onError, toStandardError, kill)
 import Node.Encoding (Encoding(UTF8))
 import Node.Path (FilePath, parse)
 import Node.Stream (onData)
-import Data.Array (zip)
+import Data.Array (zip, filter)
 import Node.Path (FilePath, concat)
 import Data.Traversable (sequence)
 import Data.Tuple
+import Node.FS.Sync (stat)
+import Node.FS.Stats (modifiedTime)
 
 data CompilerConfiguration
   = DontLink
@@ -77,3 +81,13 @@ compileAll :: forall t u. Toolchain t -> CompileSpec u -> Aff (Array Exit)
 compileAll toolchain spec =
   let inout = zip spec.sources $ map (outputPath spec.buildDir spec.buildExtension) spec.sources
   in sequence $ map (\x -> compile toolchain spec.compilerConfiguration (fst x) (snd x)) inout
+
+needsRecompile :: FilePath -> String -> Array FilePath -> Effect (Array FilePath)
+needsRecompile directory extension sources =
+  do
+    sourceStats <- sequence $ map stat sources
+    let sourceData = zip sources $ map modifiedTime sourceStats
+    outputStats <- sequence $ map stat $ map (outputPath directory extension) sources
+    let outputData = map modifiedTime outputStats
+    let tuples = filter (\x -> (snd (fst x)) > (snd x)) $ zip sourceData outputData
+    pure $ map (\x -> (fst (fst x))) tuples

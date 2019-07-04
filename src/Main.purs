@@ -1,12 +1,11 @@
 module Main where
 
-import Prelude (Unit, pure, unit, ($), (<>), map, flip, discard)
+import Prelude (Unit, bind, discard, pure, unit, ($))
 
-import Toolchain (Toolchain(..), CompilerConfiguration, compileAll, compile)
-import Data.Either (Either)
+import Toolchain (compileAll, needsRecompile)
 import GccToolchain (gccToolchain)
 import Effect (Effect)
-import Effect.Aff (Aff, launchAff_)
+import Effect.Aff (launchAff_)
 import Effect.Console (logShow)
 import Node.Path (FilePath)
 
@@ -28,7 +27,6 @@ exe = Executable { name: "myapp"
 app :: Array String -> String -> Effect Unit
 app [] _ = pure unit
 app files _ = logShow files
-app files _ = logShow files
 
 main :: Effect Unit
 main = do
@@ -44,5 +42,6 @@ main = do
                                        , buildExtension: ".o"
                                        , compilerConfiguration: []
                                        }
-  --logShow "Hello"
+  res <- needsRecompile "/tmp" ".o" ["test-src/a.cpp", "test-src/b.cpp"]
+  logShow res
 

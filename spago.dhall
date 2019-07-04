@@ -9,6 +9,7 @@ You can edit this file as you like.
     , "console"
     , "effect"
     , "node-child-process"
+    , "node-fs"
     , "node-path"
     , "psci-support"
     , "yargs"
