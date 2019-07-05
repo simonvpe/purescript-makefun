@@ -7,7 +7,7 @@ import Data.Posix.Signal (Signal(..))
 import Data.JSDate
 import Effect.Aff (Aff, effectCanceler, makeAff)
 import Effect.Class (liftEffect)
-import Effect.Console (log, error, logShow)
+import Effect.Console (log, error)
 import Effect (Effect)
 import Node.Buffer as Buffer
 import Node.ChildProcess (Exit(..), SpawnOptions, pipe, spawn, defaultSpawnOptions, onExit, stdout, stderr, onError, toStandardError, kill)
@@ -72,26 +72,25 @@ compile toolchain extraArgs input output =
     if not outputDirExists then liftEffect $ mkdir (dirname output) else pure unit
     spawnAff toolchain.compiler args options
 
-outputPath :: FilePath -> String -> FilePath -> FilePath
-outputPath directory extension source =
+outputPath :: String -> FilePath -> FilePath
+outputPath extension source =
   let parsed = parse source
-  in concat [directory, concat [parsed.dir, parsed.name] <> extension]
+  in concat [parsed.dir, parsed.name] <> extension
 
 type CompileSpec r =
   { sources :: Array FilePath
-  , buildDir :: FilePath
   , buildExtension :: FilePath
   , compilerConfiguration :: Array CompilerConfiguration
   | r}
 
 compileAll :: forall t u. Toolchain t -> CompileSpec u -> Aff (Array Exit)
 compileAll toolchain spec =
-  let inout = zip spec.sources $ map (outputPath spec.buildDir spec.buildExtension) spec.sources
+  let inout = zip spec.sources $ map (outputPath spec.buildExtension) spec.sources
   in sequence $ map (\x -> compile toolchain spec.compilerConfiguration (fst x) (snd x)) inout
 
-needsRecompile' :: FilePath -> String -> FilePath -> Effect Boolean
-needsRecompile' directory extension source =
-  let output = outputPath directory extension source
+needsRecompile' :: String -> FilePath -> Effect Boolean
+needsRecompile' extension source =
+  let output = outputPath extension source
   in do
     sourceStats <- stat source
     outputExists <- exists output
@@ -104,7 +103,7 @@ needsRecompile' directory extension source =
                pure $ true
     pure $ res
 
-needsRecompile :: FilePath -> String -> Array FilePath -> Effect (Array FilePath)
-needsRecompile directory extension sources = do
-  indicators <- sequence $ map (needsRecompile' directory extension) sources
+needsRecompile :: String -> Array FilePath -> Effect (Array FilePath)
+needsRecompile extension sources = do
+  indicators <- sequence $ map (needsRecompile' extension) sources
   pure $ map fst $ filter snd $ zip sources indicators

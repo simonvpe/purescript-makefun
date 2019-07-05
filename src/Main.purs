@@ -42,6 +42,6 @@ main = do
                                        , buildExtension: ".o"
                                        , compilerConfiguration: []
                                        }
-  res <- needsRecompile "/tmp" ".o" ["test-src/a.cpp", "test-src/b.cpp"]
+  res <- needsRecompile ".o" ["test-src/a.cpp", "test-src/b.cpp"]
   logShow res
 
