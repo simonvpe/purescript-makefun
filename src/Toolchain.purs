@@ -72,25 +72,25 @@ compile toolchain extraArgs input output =
     if not outputDirExists then liftEffect $ mkdir (dirname output) else pure unit
     spawnAff toolchain.compiler args options
 
-outputPath :: String -> FilePath -> FilePath
-outputPath extension source =
+outputPath :: forall t. {buildExtension :: String | t} -> FilePath -> FilePath
+outputPath spec source =
   let parsed = parse source
-  in concat [parsed.dir, parsed.name] <> extension
+  in concat [parsed.dir, parsed.name] <> spec.buildExtension
 
 type CompileSpec r =
   { sources :: Array FilePath
-  , buildExtension :: FilePath
+  , buildExtension :: String
   , compilerConfiguration :: Array CompilerConfiguration
   | r}
 
 compileAll :: forall t u. Toolchain t -> CompileSpec u -> Aff (Array Exit)
 compileAll toolchain spec =
-  let inout = zip spec.sources $ map (outputPath spec.buildExtension) spec.sources
+  let inout = zip spec.sources $ map (outputPath spec) spec.sources
   in sequence $ map (\x -> compile toolchain spec.compilerConfiguration (fst x) (snd x)) inout
 
-needsRecompile' :: String -> FilePath -> Effect Boolean
-needsRecompile' extension source =
-  let output = outputPath extension source
+needsRecompile' :: forall t. {buildExtension :: String | t} -> FilePath -> Effect Boolean
+needsRecompile' spec source =
+  let output = outputPath spec source
   in do
     sourceStats <- stat source
     outputExists <- exists output
@@ -103,7 +103,7 @@ needsRecompile' extension source =
                pure $ true
     pure $ res
 
-needsRecompile :: String -> Array FilePath -> Effect (Array FilePath)
-needsRecompile extension sources = do
-  indicators <- sequence $ map (needsRecompile' extension) sources
+needsRecompile :: forall t. { buildExtension :: String | t} -> Array FilePath -> Effect (Array FilePath)
+needsRecompile spec sources = do
+  indicators <- sequence $ map (needsRecompile' spec) sources
   pure $ map fst $ filter snd $ zip sources indicators
