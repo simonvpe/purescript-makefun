@@ -6,6 +6,7 @@ You can edit this file as you like.
     "makefun"
 , dependencies =
     [ "aff"
+    , "ansi"
     , "console"
     , "effect"
     , "node-child-process"
