@@ -1,27 +1,25 @@
 module Toolchain where
 
-import Prelude
-
+import Ansi.Codes (Color(..))
+import Ansi.Output (withGraphics, foreground)
+import Control.Monad.Error.Class (try)
+import Control.Parallel (parSequence)
+import Data.Array (zip)
 import Data.Either (Either(..))
 import Data.Posix.Signal (Signal(..))
-import Data.JSDate
-import Effect.Aff (Aff, effectCanceler, makeAff)
+import Data.Traversable (intercalate, sequence)
+import Data.Tuple (fst, snd)
+import Effect.Aff (Aff, effectCanceler, forkAff, joinFiber, makeAff)
 import Effect.Class (liftEffect)
 import Effect.Console (log, error)
-import Effect (Effect)
 import Node.Buffer as Buffer
-import Node.ChildProcess (Exit(..), SpawnOptions, pipe, spawn, defaultSpawnOptions, onExit, stdout, stderr, onError, toStandardError, kill)
+import Node.ChildProcess (Exit(..), pipe, spawn, defaultSpawnOptions, onExit, stdout, stderr, onError, toStandardError, kill)
 import Node.Encoding (Encoding(UTF8))
-import Node.Path (FilePath, parse, dirname)
-import Node.Stream (onData)
-import Data.Array (zip, filter)
-import Node.Path (FilePath, concat)
-import Data.Traversable (sequence, fold, intercalate)
-import Data.Tuple
-import Node.FS.Sync (stat, exists, mkdir)
 import Node.FS.Stats (modifiedTime)
-import Ansi.Output (withGraphics, foreground)
-import Ansi.Codes (Color(..))
+import Node.FS.Sync (stat, exists, mkdir)
+import Node.Path (FilePath, parse, dirname, concat)
+import Node.Stream (onData)
+import Prelude (bind, discard, map, not, pure, show, unit, void, (#), ($), (<), (<$>), (<<<), (<>), (>=>))
 
 data CompilerConfiguration
   = DontLink
@@ -53,8 +51,13 @@ type Toolchain r =
   , generateLinkerFlags :: LinkerFlagGenerator
   | r}
 
-compile :: forall r. Toolchain r -> Array CompilerConfiguration -> CompilerInput -> CompilerOutput -> Aff Exit
-compile toolchain extraArgs input output =
+outputPath :: FilePath -> FilePath
+outputPath source =
+  let parsed = parse source
+  in concat [parsed.dir, parsed.name] <> ".o"
+
+compile :: forall r. Toolchain r -> Array CompilerConfiguration -> CompilerInput  -> Aff Exit
+compile toolchain extraArgs input =
   let
     spawnAff cmd arguments opts = makeAff \cb -> do
       log $ withGraphics (foreground Green) (intercalate " " $ [cmd] <> args)
@@ -66,32 +69,44 @@ compile toolchain extraArgs input output =
         cb <<< pure $ exit
       pure <<< effectCanceler <<< void $ kill SIGTERM process
     args = toolchain.generateCompilerFlags (toolchain.defaultCompilerConfiguration <> extraArgs) input output
+    output = outputPath input
     options = defaultSpawnOptions { stdio = pipe }
   in do
     outputDirExists <- liftEffect $ exists (dirname output)
     if not outputDirExists then liftEffect $ mkdir (dirname output) else pure unit
     spawnAff toolchain.compiler args options
 
-outputPath :: forall t. {buildExtension :: String | t} -> FilePath -> FilePath
-outputPath spec source =
-  let parsed = parse source
-  in concat [parsed.dir, parsed.name] <> spec.buildExtension
+type Compiler = FilePath -> Aff Exit
 
-type CompileSpec r =
-  { sources :: Array FilePath
-  , buildExtension :: String
-  , compilerConfiguration :: Array CompilerConfiguration
-  | r}
-
-compileAll :: forall t u. Toolchain t -> CompileSpec u -> Aff (Array Exit)
-compileAll toolchain spec =
-  let inout = zip spec.sources $ map (outputPath spec) spec.sources
-  in sequence $ map (\x -> compile toolchain spec.compilerConfiguration (fst x) (snd x)) inout
-
-needsRecompile' :: forall t. {buildExtension :: String | t} -> FilePath -> Effect Boolean
-needsRecompile' spec source =
-  let output = outputPath spec source
+parCompile :: Compiler -> Array FilePath -> Aff(Either String (Array FilePath))
+parCompile compiler files =
+  let
+    exitToString file signal = case signal of
+      Normally 0 -> true # Right
+      Normally r -> "return code " <> show r <> " (" <> file <> ")" # Left
+      BySignal x -> "signal " <> show x <> " (" <> file <> ")" # Left
   in do
+    fibers <- files
+              # map compiler
+              # map forkAff
+              # parSequence
+
+    results <- fibers
+               # map (\x -> try $ joinFiber x)
+               # sequence
+
+    pure $ case sequence results of
+      Left err ->
+        err # show # Left
+
+      Right sigs -> do
+        success <- (\x -> fst x # exitToString $ snd x) <$> zip files sigs # sequence
+        Right files
+
+needsRecompile :: FilePath -> Aff Boolean
+needsRecompile source =
+  let output = outputPath source
+  in liftEffect do
     sourceStats <- stat source
     outputExists <- exists output
     res <- if outputExists then
@@ -102,8 +117,3 @@ needsRecompile' spec source =
              do
                pure $ true
     pure $ res
-
-needsRecompile :: forall t. { buildExtension :: String | t} -> Array FilePath -> Effect (Array FilePath)
-needsRecompile spec sources = do
-  indicators <- sequence $ map (needsRecompile' spec) sources
-  pure $ map fst $ filter snd $ zip sources indicators

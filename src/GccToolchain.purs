@@ -30,3 +30,6 @@ gccToolchain =
   , generateCompilerFlags: gccCompilerFlagGenerator
   , generateLinkerFlags: gccLinkerFlagGenerator
   }
+
+gccCompile :: Compiler
+gccCompile = compile gccToolchain []

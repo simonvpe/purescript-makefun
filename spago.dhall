@@ -9,6 +9,7 @@ You can edit this file as you like.
     , "ansi"
     , "console"
     , "effect"
+    , "filterable"
     , "node-child-process"
     , "node-fs"
     , "node-path"

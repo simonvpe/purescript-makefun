@@ -1,13 +1,13 @@
 module Main where
 
-import Prelude (Unit, bind, discard, pure, unit, ($))
-
-import Toolchain (compileAll, needsRecompile)
-import GccToolchain (gccToolchain)
 import Effect (Effect)
-import Effect.Aff (launchAff_)
+import Effect.Aff(Aff, launchAff)
+import Effect.Class (liftEffect)
 import Effect.Console (logShow)
+import GccToolchain (gccCompile)
 import Node.Path (FilePath)
+import Prelude (Unit, bind, void, ($))
+import Toolchain (parCompile)
 
 type TargetName = String
 
@@ -21,27 +21,19 @@ exe :: Target
 exe = Executable { name: "myapp"
                  , sources: [ "test-src/a.cpp"
                             , "test-src/b.cpp"
+                            , "test-src/c.cpp"
                             ]
                  }
 
-app :: Array String -> String -> Effect Unit
-app [] _ = pure unit
-app files _ = logShow files
+sources :: Target -> Array FilePath
+sources target = case target of
+  Executable e -> e.sources
+
+app :: Aff Unit
+app = do
+  r <- parCompile gccCompile (sources exe)
+  liftEffect $ logShow r
 
 main :: Effect Unit
 main = do
-  -- let setup = usage "$0 -f makefun-file" <> example "$0 -f myproject.makefun" "Say hello!"
-  -- runY setup
-  --   $ app
-  --   <$> yarg "f" ["file"] (Just "Path to a makefun file") (Right "At least one makefun file is required") true
-  --   <*> yarg "t" ["toolchain"] (Just "A toolchain") (Right "At least one toolchain is required") true
-  -- launchAff_ (compile gccToolchain [Output "test.o", Source "test.cpp"])
-  -- logShow (compileAll gccToolchain ["test-src/a.cpp"] "/tmp" [])
-  launchAff_ $ compileAll gccToolchain { sources: ["test-src/a.cpp", "test-src/b.cpp"]
-                                       , buildDir: "/tmp"
-                                       , buildExtension: ".o"
-                                       , compilerConfiguration: []
-                                       }
-  res <- needsRecompile { buildExtension: ".o" } ["test-src/a.cpp", "test-src/b.cpp"]
-  logShow res
-
+  void $ launchAff $ app
