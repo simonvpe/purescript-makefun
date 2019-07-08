@@ -7,22 +7,30 @@ module Cache
        ) where
 
 import Data.Array (many)
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.String.CodeUnits (fromCharArray, toCharArray)
 import Data.Tuple (Tuple(..), fst, snd)
-import Data.Traversable (sequence)
+import Data.Traversable (sequence, fold)
 import Node.Path (FilePath)
 import Prelude
-import Text.Parsing.Parser (runParser)
+import Text.Parsing.Parser (Parser, runParser)
 import Text.Parsing.Parser.String (noneOf, oneOf)
 import Node.FS.Sync (exists, readTextFile, appendTextFile, truncate)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
+import Effect.Console (logShow)
 import Node.Encoding (Encoding(UTF8))
+import Data.Formatter.DateTime (Formatter, FormatterCommand(..), unformat, format, parseFormatString)
+import Data.DateTime
+import Data.List (List, fromFoldable)
+import Data.Maybe (Maybe(..))
 
 type Hash = String
-type CacheRow = Tuple FilePath Hash
+type CacheRow = Tuple FilePath DateTime
 type Cache = Array CacheRow
+
+fmt :: Formatter
+fmt = fromFoldable [UnixTimestamp]
 
 load :: FilePath -> Aff Cache
 load path =
@@ -33,32 +41,39 @@ load path =
       res <- many $ noneOf whitespace
       res # fromCharArray # pure
 
+    row :: Parser String (Maybe (Tuple FilePath DateTime))
     row = do
       obj <- object
       _ <- oneOf whitespace
-      hash <- object
+      datetime <- object
       _ <- oneOf whitespace
-      Tuple obj hash # pure
+      pure $ case unformat fmt datetime of
+        Left _ -> Nothing
+        Right dt -> Tuple obj dt # Just
 
-    cache = many row
+    cache :: Parser String (Maybe (Array (Tuple FilePath DateTime)))
+    cache = sequence <$> many row
 
+    parse :: String -> Cache
     parse content = case runParser content cache of
-      Left err -> show err # Left
-      Right res -> res # Right
+      Left _ -> []
+      Right m -> case m of
+        Nothing -> []
+        Just r -> r
+
   in do
     fileExists <- liftEffect $ exists path
     if fileExists
        then do
             content <- liftEffect $ readTextFile UTF8 path
-            pure $ case parse content of
-              Left _ -> []
-              Right c -> c
+            liftEffect $ logShow content
+            pure $ parse content
       else
             pure []
 
 store :: Cache -> FilePath -> Aff Unit
 store cache path =
-  let store' row = appendTextFile UTF8 path $ (fst row) <> " " <> (snd row) <> "\n"
+  let store' row = appendTextFile UTF8 path $ (fst row) <> " " <> (format fmt $ snd row) <> "\n"
   in do
     exists <- liftEffect $ exists path
     _ <- if exists then do liftEffect $ truncate path 0 else pure unit

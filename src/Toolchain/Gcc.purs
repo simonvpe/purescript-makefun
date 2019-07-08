@@ -23,8 +23,8 @@ gccLinkerFlagGenerator config input output =
 
 gccToolchain :: Toolchain ()
 gccToolchain =
-  { compiler: "/sbin/g++"
-  , linker: "/sbin/ld"
+  { compiler: "/usr/bin/g++"
+  , linker: "/usr/bin/ld"
   , defaultCompilerConfiguration: [DontLink, GenerateDependencyInformation]
   , defaultLinkerConfiguration: []
   , generateCompilerFlags: gccCompilerFlagGenerator
