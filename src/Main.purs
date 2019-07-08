@@ -1,14 +1,14 @@
 module Main where
 
-import Data.Either
+import Data.Either (Either)
 import Effect (Effect)
 import Effect.Aff(Aff, launchAff)
 import Effect.Class (liftEffect)
 import Effect.Console (logShow)
 import GccToolchain (gccToolchain)
 import Node.Path (FilePath)
-import Prelude (Unit, bind, void, ($))
-import Toolchain (Toolchain, parCompile, compile, CompilerConfiguration(..))
+import Prelude (Unit, bind, void, ($), discard)
+import Toolchain (Toolchain, parCompile, compile, CompilerConfiguration(..), dependencies)
 
 type TargetName = String
 
@@ -46,6 +46,8 @@ compileTarget toolchain nofThreads target =
 
 app :: Aff Unit
 app = do
+  deps <- dependencies gccToolchain "test-src/a.cpp"
+  liftEffect $ logShow deps
   r <- compileTarget gccToolchain 8 exe
   liftEffect $ logShow r
 

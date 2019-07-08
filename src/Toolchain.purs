@@ -5,10 +5,10 @@ import Ansi.Output (withGraphics, foreground)
 import Control.Monad.Error.Class (try)
 import Control.Parallel (parSequence)
 import Data.Array (zip, take, drop)
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Posix.Signal (Signal(..))
 import Data.Traversable (intercalate, sequence)
-import Data.Tuple (fst, snd)
+import Data.Tuple (Tuple, fst, snd)
 import Effect.Aff (Aff, effectCanceler, forkAff, joinFiber, makeAff)
 import Effect.Class (liftEffect)
 import Effect.Console (log, error)
@@ -16,7 +16,7 @@ import Node.Buffer as Buffer
 import Node.ChildProcess (Exit(..), pipe, spawn, defaultSpawnOptions, onExit, stdout, stderr, onError, toStandardError, kill)
 import Node.Encoding (Encoding(UTF8))
 import Node.FS.Stats (modifiedTime)
-import Node.FS.Sync (stat, exists, mkdir)
+import Node.FS.Sync (stat, exists, mkdir, readTextFile)
 import Node.Path (FilePath, parse, dirname, concat)
 import Node.Stream (onData)
 import Prelude (bind, discard, map, not, pure, show, unit, void, (#), ($), (<), (<$>), (<<<), (<>), (>=>))
@@ -25,6 +25,7 @@ data CompilerConfiguration
   = DontLink
   | IncludeDirectory FilePath
   | LibraryDirectory FilePath
+  | GenerateDependencyInformation
   | NoCompilerConfiguration
 
 type CompilerOutput = FilePath
@@ -42,6 +43,10 @@ type LinkerInput = FilePath
 
 type LinkerFlagGenerator = Array LinkerConfiguration -> LinkerInput -> LinkerOutput -> Array String
 
+type Dependency = Tuple CompilerInput (Array FilePath)
+
+type DependencyParser = String -> Either String Dependency
+
 type Toolchain r =
   { compiler :: FilePath
   , linker :: FilePath
@@ -49,12 +54,18 @@ type Toolchain r =
   , defaultLinkerConfiguration :: Array LinkerConfiguration
   , generateCompilerFlags :: CompilerFlagGenerator
   , generateLinkerFlags :: LinkerFlagGenerator
+  , parseDependencies :: DependencyParser
   | r}
 
 outputPath :: FilePath -> FilePath
 outputPath source =
   let parsed = parse source
   in concat [parsed.dir, parsed.name] <> ".o"
+
+dependencyListPath :: CompilerInput -> FilePath
+dependencyListPath source =
+  let parsed = parse source
+  in concat [parsed.dir, parsed.name] <> ".d"
 
 compile :: forall r. Toolchain r -> Array CompilerConfiguration -> CompilerInput  -> Aff Exit
 compile toolchain extraArgs input =
@@ -104,8 +115,7 @@ parCompile' compiler files =
         Right files
 
 parCompile :: Compiler -> Int -> Array FilePath -> Aff(Either String (Array FilePath))
-parCompile _ _ [] = do
-  pure $ Right []
+parCompile _ _ [] = do pure $ Right []
 parCompile compiler nofThreads files =
   if nofThreads < 1 then do
     "too few threads (" <> show nofThreads <> ")" # Left # pure
@@ -113,6 +123,17 @@ parCompile compiler nofThreads files =
     left <- files # take nofThreads # parCompile' compiler
     right <- files # drop nofThreads # parCompile compiler nofThreads
     pure $ left <> right
+
+dependencies :: forall r. Toolchain r -> FilePath -> Aff(Array FilePath)
+dependencies toolchain source =
+  let path = dependencyListPath source
+  in do
+    dependencyListExists <- liftEffect $ exists path
+    if dependencyListExists
+      then do
+           content <- liftEffect $ readTextFile UTF8 path
+           content # toolchain.parseDependencies # either (\_ -> []) snd # pure
+      else [] # pure
 
 needsRecompile :: FilePath -> Aff Boolean
 needsRecompile source =
