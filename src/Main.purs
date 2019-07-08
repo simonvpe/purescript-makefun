@@ -1,15 +1,18 @@
 module Main where
 
+import Control.Applicative (pure)
 import Data.Either (Either)
+import Data.Array (zip)
 import Effect (Effect)
 import Effect.Aff(Aff, launchAff)
 import Effect.Class (liftEffect)
-import Effect.Console (logShow)
+import Effect.Console (logShow, log)
 import Toolchain.Gcc (gccToolchain)
 import Node.Path (FilePath)
-import Prelude (Unit, bind, void, ($), discard)
-import Toolchain (Toolchain, parCompile, compile, CompilerConfiguration(..), dependencies)
+import Prelude (Unit, bind, void, ($), discard, (<$>), (#), (<>), show)
+import Toolchain (Dependency, Toolchain, parCompile, compile, CompilerConfiguration(..), dependencies)
 import Cache (load, store)
+import Data.Traversable (traverse)
 
 type TargetName = String
 
@@ -40,19 +43,28 @@ compilerConfig :: Target -> Array CompilerConfiguration
 compilerConfig target = case target of
   Executable e -> e.compilerConfig
 
+dependencies' :: forall r. Toolchain r -> Target -> Aff (Array Dependency)
+dependencies' toolchain target =
+  let src = sources target
+  in do
+    deps <- traverse (dependencies toolchain) src
+    zip src deps # pure
+
 compileTarget :: forall r. Toolchain r -> Int -> Target -> Aff (Either String (Array FilePath))
 compileTarget toolchain nofThreads target =
   let compiler = compile toolchain $ compilerConfig target
   in parCompile compiler nofThreads $ sources target
 
 app :: Aff Unit
-app = do
-  deps <- dependencies gccToolchain "test-src/a.cpp"
-  liftEffect $ logShow deps
-  r <- compileTarget gccToolchain 8 exe
-  cache <- load "cache"
-  _ <- store cache "cache2"
-  liftEffect $ logShow cache
+app =
+  let src = sources exe
+  in do
+    deps <- dependencies' gccToolchain exe
+    liftEffect $ (log $ "deps = " <> show (zip src deps))
+    r <- compileTarget gccToolchain 8 exe
+    cache <- load "cache"
+    _ <- store cache "cache2"
+    liftEffect $ logShow cache
 
 main :: Effect Unit
 main = do
