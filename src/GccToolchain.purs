@@ -11,15 +11,13 @@ gccCompilerFlagGenerator config input output =
         (IncludeDirectory path)   -> ["-I", path]
         (LibraryDirectory path)   -> ["-L", path]
         (NoCompilerConfiguration) -> []
-  in
-   (concatMap xform config) <> ["-o", output] <> [input]
+  in (concatMap xform config) <> ["-o", output] <> [input]
 
 gccLinkerFlagGenerator :: LinkerFlagGenerator
 gccLinkerFlagGenerator config input output =
   let xform x = case x of
         (NoLinkerConfiguration) -> []
-  in
-   (concatMap xform config) <> ["-o", output] <> [input]
+  in (concatMap xform config) <> ["-o", output] <> [input]
 
 gccToolchain :: Toolchain ()
 gccToolchain =
@@ -30,6 +28,3 @@ gccToolchain =
   , generateCompilerFlags: gccCompilerFlagGenerator
   , generateLinkerFlags: gccLinkerFlagGenerator
   }
-
-gccCompile :: Compiler
-gccCompile = compile gccToolchain []

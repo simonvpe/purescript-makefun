@@ -4,7 +4,7 @@ import Ansi.Codes (Color(..))
 import Ansi.Output (withGraphics, foreground)
 import Control.Monad.Error.Class (try)
 import Control.Parallel (parSequence)
-import Data.Array (zip)
+import Data.Array (zip, take, drop)
 import Data.Either (Either(..))
 import Data.Posix.Signal (Signal(..))
 import Data.Traversable (intercalate, sequence)
@@ -78,8 +78,8 @@ compile toolchain extraArgs input =
 
 type Compiler = FilePath -> Aff Exit
 
-parCompile :: Compiler -> Array FilePath -> Aff(Either String (Array FilePath))
-parCompile compiler files =
+parCompile' :: Compiler -> Array FilePath -> Aff(Either String (Array FilePath))
+parCompile' compiler files =
   let
     exitToString file signal = case signal of
       Normally 0 -> true # Right
@@ -102,6 +102,17 @@ parCompile compiler files =
       Right sigs -> do
         success <- (\x -> fst x # exitToString $ snd x) <$> zip files sigs # sequence
         Right files
+
+parCompile :: Compiler -> Int -> Array FilePath -> Aff(Either String (Array FilePath))
+parCompile _ _ [] = do
+  pure $ Right []
+parCompile compiler nofThreads files =
+  if nofThreads < 1 then do
+    "too few threads (" <> show nofThreads <> ")" # Left # pure
+  else do
+    left <- files # take nofThreads # parCompile' compiler
+    right <- files # drop nofThreads # parCompile compiler nofThreads
+    pure $ left <> right
 
 needsRecompile :: FilePath -> Aff Boolean
 needsRecompile source =
