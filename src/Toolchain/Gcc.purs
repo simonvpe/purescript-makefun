@@ -1,8 +1,8 @@
-module GccToolchain where
+module Toolchain.Gcc where
 
 import Data.Array (concatMap)
 import Data.Semigroup ((<>))
-import GccToolchain.DependencyParser (gccParseDependencies)
+import Toolchain.Gcc.DependencyParser (gccParseDependencies)
 import Toolchain (CompilerConfiguration(..), CompilerFlagGenerator, LinkerConfiguration(..), LinkerFlagGenerator, Toolchain)
 
 gccCompilerFlagGenerator :: CompilerFlagGenerator

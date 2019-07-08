@@ -1,4 +1,4 @@
-module GccToolchain.DependencyParser where
+module Toolchain.Gcc.DependencyParser where
 
 import Data.Array (filter, many)
 import Data.Either (Either(..))
