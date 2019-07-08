@@ -1,4 +1,4 @@
-module Toolchain.Gcc where
+module Toolchain.Gcc (gccToolchain) where
 
 import Data.Array (concatMap)
 import Data.Semigroup ((<>))

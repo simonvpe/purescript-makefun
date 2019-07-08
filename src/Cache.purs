@@ -1,4 +1,10 @@
-module Cache where
+module Cache
+       ( Cache
+       , CacheRow
+       , Hash
+       , load
+       , store
+       ) where
 
 import Data.Array (many)
 import Data.Either (Either(..))

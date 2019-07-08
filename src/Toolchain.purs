@@ -1,5 +1,22 @@
-module Toolchain where
+module Toolchain
+       ( Compiler
+       , CompilerConfiguration(..)
+       , CompilerFlagGenerator
+       , CompilerInput
+       , CompilerOutput
+       , Dependency
+       , DependencyParser
+       , LinkerConfiguration(..)
+       , LinkerFlagGenerator
+       , LinkerInput
+       , LinkerOutput
+       , Toolchain
+       , compile
+       , dependencies
+       , parCompile
+       ) where
 
+-- import Node.FS.Stats (modifiedTime)
 import Ansi.Codes (Color(..))
 import Ansi.Output (withGraphics, foreground)
 import Control.Monad.Error.Class (try)
@@ -15,8 +32,7 @@ import Effect.Console (log, error)
 import Node.Buffer as Buffer
 import Node.ChildProcess (Exit(..), pipe, spawn, defaultSpawnOptions, onExit, stdout, stderr, onError, toStandardError, kill)
 import Node.Encoding (Encoding(UTF8))
-import Node.FS.Stats (modifiedTime)
-import Node.FS.Sync (stat, exists, mkdir, readTextFile)
+import Node.FS.Sync (exists, mkdir, readTextFile)
 import Node.Path (FilePath, parse, dirname, concat)
 import Node.Stream (onData)
 import Prelude (bind, discard, map, not, pure, show, unit, void, (#), ($), (<), (<$>), (<<<), (<>), (>=>))
@@ -87,7 +103,7 @@ compile toolchain extraArgs input =
     if not outputDirExists then liftEffect $ mkdir (dirname output) else pure unit
     spawnAff toolchain.compiler args options
 
-type Compiler = FilePath -> Aff Exit
+type Compiler = CompilerInput -> Aff Exit
 
 parCompile' :: Compiler -> Array FilePath -> Aff(Either String (Array FilePath))
 parCompile' compiler files =
@@ -135,17 +151,17 @@ dependencies toolchain source =
            content # toolchain.parseDependencies # either (\_ -> []) snd # pure
       else [] # pure
 
-needsRecompile :: FilePath -> Aff Boolean
-needsRecompile source =
-  let output = outputPath source
-  in liftEffect do
-    sourceStats <- stat source
-    outputExists <- exists output
-    res <- if outputExists then
-             do
-               outputStats <- stat output
-               pure $ modifiedTime outputStats < modifiedTime sourceStats
-           else
-             do
-               pure $ true
-    pure $ res
+-- needsRecompile :: FilePath -> Aff Boolean
+-- needsRecompile source =
+--   let output = outputPath source
+--   in liftEffect do
+--     sourceStats <- stat source
+--     outputExists <- exists output
+--     res <- if outputExists then
+--              do
+--                outputStats <- stat output
+--                pure $ modifiedTime outputStats < modifiedTime sourceStats
+--            else
+--              do
+--                pure $ true
+--     pure $ res
