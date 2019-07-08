@@ -9,6 +9,7 @@ import GccToolchain (gccToolchain)
 import Node.Path (FilePath)
 import Prelude (Unit, bind, void, ($), discard)
 import Toolchain (Toolchain, parCompile, compile, CompilerConfiguration(..), dependencies)
+import Cache (load, store)
 
 type TargetName = String
 
@@ -49,7 +50,9 @@ app = do
   deps <- dependencies gccToolchain "test-src/a.cpp"
   liftEffect $ logShow deps
   r <- compileTarget gccToolchain 8 exe
-  liftEffect $ logShow r
+  cache <- load "cache"
+  _ <- store cache "cache2"
+  liftEffect $ logShow cache
 
 main :: Effect Unit
 main = do
