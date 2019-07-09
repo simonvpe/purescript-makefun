@@ -7,6 +7,7 @@ import Prelude
 import Target (Target, sources, compilerConfig)
 import Toolchain (Toolchain, parCompile, mkCompiler)
 import Node.FS.Sync (exists, readTextFile)
+import Node.Path (concat)
 import Data.Traversable (sequence)
 import Data.Either(Either(..))
 import Node.Crypto.Hash (hex, Algorithm(MD5))
@@ -32,7 +33,7 @@ source path = do
 
 object :: FilePath -> FilePath -> Aff (Either Error Object)
 object builddir path =
-  let objPath src = builddir <> "/" <> src.path <> ".o/" <> src.hash <> ".o"
+  let objPath src = concat [builddir, src.path <> ".o", src.hash <> ".o"]
       obj src = {source: src, path: objPath src }
   in source path >>= (\e -> e >>= obj >>> pure) >>> pure
 
