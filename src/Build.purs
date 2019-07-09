@@ -5,7 +5,7 @@ import Effect.Class (liftEffect)
 import Node.Path (FilePath)
 import Prelude
 import Target (Target, sources, compilerConfig)
-import Toolchain (Toolchain, parCompile, mkCompiler)
+import Toolchain as TC
 import Node.FS.Sync (exists, readTextFile)
 import Node.Path (concat)
 import Data.Traversable (sequence)
@@ -48,10 +48,10 @@ needsRebuild builddir cache objs =
     rebuild <- needsRebuild'' <$> objs # sequence
     pure $ zip objs rebuild # (filter snd >>> map fst)
 
-build :: forall r. Toolchain r -> FilePath -> Int -> Target -> Aff (Either String (Array (Tuple String String)))
+build :: forall r. TC.Toolchain r -> FilePath -> Int -> Target -> Aff (Either Error (Array (Tuple String String)))
 build toolchain builddir nofThreads target =
-  let compiler = mkCompiler toolchain $ compilerConfig target
-      compile inputs = parCompile compiler nofThreads inputs
+  let compiler = TC.mkCompiler toolchain $ compilerConfig target
+      compile inputs = TC.parCompile compiler nofThreads inputs
       needsRebuild' builddir cache objs = needsRebuild builddir cache objs >>=
                                           map (\x -> Tuple x.source.path x.path) >>> pure
   in do
@@ -61,3 +61,11 @@ build toolchain builddir nofThreads target =
       Right objs -> do
         rebuild <- needsRebuild' builddir [] objs
         compile rebuild
+
+link :: forall r. TC.Toolchain r -> FilePath -> Target -> Aff(Either Error Unit)
+link toolchain builddir target = do
+  o <- objects builddir target
+  case o of
+    Left err -> pure $ Left err
+    Right objs -> do
+      pure $ Right unit

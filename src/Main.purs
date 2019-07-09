@@ -4,7 +4,7 @@ import Build
 import Effect (Effect)
 import Effect.Aff(Aff, launchAff)
 import Effect.Console(log, logShow)
-import Prelude (Unit, void, ($), bind)
+import Prelude (Unit, void, ($), bind, pure, unit)
 import Target (Target(..))
 import Toolchain (CompilerConfiguration(..))
 import Toolchain.Gcc (gccToolchain)
@@ -25,11 +25,16 @@ exe = Executable { name: "myapp"
 
 app :: Aff Unit
 app = do
-  result <- build gccToolchain "b" 8 exe 
-  case result of
+  let builddir = "b"
+  buildRes <- build gccToolchain builddir 8 exe 
+  case buildRes of
     Left err -> liftEffect $ log err
-    Right ok -> liftEffect $ logShow ok
-  
+    Right ok -> do
+      linkRes <- link gccToolchain builddir exe
+      case linkRes of
+        Left err -> liftEffect $ log err
+        Right ok -> pure unit
+
 main :: Effect Unit
 main = do
   void $ launchAff $ app

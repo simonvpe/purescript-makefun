@@ -63,7 +63,7 @@ type LinkerOutput = FilePath
 
 type LinkerInput = FilePath
 
-type LinkerFlagGenerator = Array LinkerConfiguration -> LinkerInput -> LinkerOutput -> Array String
+type LinkerFlagGenerator = Array LinkerConfiguration -> Array LinkerInput -> LinkerOutput -> Array String
 
 type Dependency = Tuple CompilerInput (Array FilePath)
 
@@ -84,22 +84,28 @@ type Toolchain r =
 --   let parsed = parse source
 --   in concat [parsed.dir, parsed.name] <> ".d"
 
+spawnAff cmd args opts = makeAff \cb -> do
+  log $ withGraphics (foreground Green) (intercalate " " $ [cmd] <> args)
+  process <- spawn cmd args opts
+  onData (stdout process) (Buffer.toString UTF8 >=> log)
+  onData (stderr process) (Buffer.toString UTF8 >=> error)
+  onError process $ cb <<< Left <<< toStandardError
+  onExit process \exit -> do
+    cb <<< pure $ exit
+  pure <<< effectCanceler <<< void $ kill SIGTERM process
+
+
+exitToString file signal = case signal of
+  Normally 0 -> true # Right
+  Normally r -> "Error: return code " <> show r <> " (" <> file <> ")" # Left
+  BySignal x -> "Error: signal " <> show x <> " (" <> file <> ")" # Left
+
 compile :: forall r. Toolchain r -> Array CompilerConfiguration -> Tuple CompilerInput CompilerOutput  -> Aff Exit
 compile toolchain extraArgs inout =
-  let
-    spawnAff cmd arguments opts = makeAff \cb -> do
-      log $ withGraphics (foreground Green) (intercalate " " $ [cmd] <> args)
-      process <- spawn cmd arguments opts
-      onData (stdout process) (Buffer.toString UTF8 >=> log)
-      onData (stderr process) (Buffer.toString UTF8 >=> error)
-      onError process $ cb <<< Left <<< toStandardError
-      onExit process \exit -> do
-        cb <<< pure $ exit
-      pure <<< effectCanceler <<< void $ kill SIGTERM process
-    input = fst inout
-    output = snd inout
-    args = toolchain.generateCompilerFlags (toolchain.defaultCompilerConfiguration <> extraArgs) input output
-    options = defaultSpawnOptions { stdio = pipe }
+  let input = fst inout
+      output = snd inout
+      args = toolchain.generateCompilerFlags (toolchain.defaultCompilerConfiguration <> extraArgs) input output
+      options = defaultSpawnOptions { stdio = pipe }
   in do
     outputDirExists <- liftEffect $ exists (dirname output)
     if not outputDirExists then liftEffect $ mkdirp (dirname output) else pure unit
@@ -114,28 +120,23 @@ parCompile :: Compiler -> Int -> Array (Tuple CompilerInput CompilerOutput) -> A
 parCompile _ _ [] = do pure $ Right []
 parCompile compiler nofThreads files =
   let parCompile' :: Compiler -> Array (Tuple CompilerInput CompilerOutput) -> Aff(Either String (Array (Tuple CompilerInput CompilerOutput)))
-      parCompile' compiler' files' =
-        let exitToString file signal = case signal of
-              Normally 0 -> true # Right
-              Normally r -> "Error: return code " <> show r <> " (" <> file <> ")" # Left
-              BySignal x -> "Error: signal " <> show x <> " (" <> file <> ")" # Left
-        in do
-          fibers <- files'
-                    # map compiler'
-                    # map forkAff
-                    # parSequence
+      parCompile' compiler' files' = do
+        fibers <- files'
+                  # map compiler'
+                  # map forkAff
+                  # parSequence
 
-          results <- fibers
-                     # map (\x -> try $ joinFiber x)
-                     # sequence
+        results <- fibers
+                   # map (\x -> try $ joinFiber x)
+                   # sequence
 
-          pure $ case sequence results of
-            Left err ->
-              err # show # Left
+        pure $ case sequence results of
+          Left err ->
+            err # show # Left
 
-            Right sigs -> do
-              success <- (\x -> x # fst <<< fst # exitToString $ snd x) <$> zip files' sigs # sequence
-              Right files
+          Right sigs -> do
+            success <- (\x -> x # fst <<< fst # exitToString $ snd x) <$> zip files' sigs # sequence
+            Right files
   in if nofThreads < 1
      then do
        "Error: too few threads (" <> show nofThreads <> ")" # Left # pure
@@ -143,6 +144,24 @@ parCompile compiler nofThreads files =
        left <- files # take nofThreads # parCompile' compiler
        right <- files # drop nofThreads # parCompile compiler nofThreads
        pure $ left <> right
+
+
+-- compile :: forall r. Toolchain r -> Array CompilerConfiguration -> Tuple CompilerInput CompilerOutput  -> Aff Exit
+-- compile toolchain extraArgs inout =
+--   let
+--     input = fst inout
+--     output = snd inout
+--     args = toolchain.generateCompilerFlags (toolchain.defaultCompilerConfiguration <> extraArgs) input output
+--     options = defaultSpawnOptions { stdio = pipe }
+--   in do
+--     outputDirExists <- liftEffect $ exists (dirname output)
+--     if not outputDirExists then liftEffect $ mkdirp (dirname output) else pure unit
+--     spawnAff toolchain.compiler args options
+
+link :: forall r. Toolchain r -> Array LinkerConfiguration -> Array FilePath -> FilePath -> Aff Exit
+link toolchain extraArgs input output =
+  let args = toolchain.generateLinkerFlags (toolchain.defaultLinkerConfiguration <> extraArgs) input output
+  in do pure $ Normally 0
 
 -- dependencies :: forall r. Toolchain r -> FilePath -> Aff(Dependency)
 -- dependencies toolchain source =

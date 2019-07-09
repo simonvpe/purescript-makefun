@@ -16,10 +16,10 @@ gccCompilerFlagGenerator config input output =
   in (concatMap xform config) <> ["-o", output] <> [input]
 
 gccLinkerFlagGenerator :: LinkerFlagGenerator
-gccLinkerFlagGenerator config input output =
+gccLinkerFlagGenerator config inputs output =
   let xform x = case x of
         (NoLinkerConfiguration) -> []
-  in (concatMap xform config) <> ["-o", output] <> [input]
+  in (concatMap xform config) <> ["-o", output] <> inputs
 
 gccToolchain :: Toolchain ()
 gccToolchain =
