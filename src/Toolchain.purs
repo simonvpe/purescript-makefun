@@ -117,8 +117,8 @@ parCompile compiler nofThreads files =
       parCompile' compiler' files' =
         let exitToString file signal = case signal of
               Normally 0 -> true # Right
-              Normally r -> "return code " <> show r <> " (" <> file <> ")" # Left
-              BySignal x -> "signal " <> show x <> " (" <> file <> ")" # Left
+              Normally r -> "Error: return code " <> show r <> " (" <> file <> ")" # Left
+              BySignal x -> "Error: signal " <> show x <> " (" <> file <> ")" # Left
         in do
           fibers <- files'
                     # map compiler'
@@ -138,7 +138,7 @@ parCompile compiler nofThreads files =
               Right files
   in if nofThreads < 1
      then do
-       "too few threads (" <> show nofThreads <> ")" # Left # pure
+       "Error: too few threads (" <> show nofThreads <> ")" # Left # pure
      else do
        left <- files # take nofThreads # parCompile' compiler
        right <- files # drop nofThreads # parCompile compiler nofThreads
