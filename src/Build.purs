@@ -37,25 +37,27 @@ object builddir path =
       obj src = {source: src, path: objPath src }
   in source path >>= (\e -> e >>= obj >>> pure) >>> pure
 
-needsRebuild :: FilePath -> Cache -> Array FilePath -> Aff (Either Error (Array Object))
-needsRebuild builddir cache src =
+objects :: FilePath -> Target -> Aff (Either Error (Array Object))
+objects builddir target =
+  ((object builddir <$> sources target) # sequence) >>= (sequence >>> pure)
+
+needsRebuild :: FilePath -> Cache -> Array Object -> Aff (Array Object)
+needsRebuild builddir cache objs =
   let needsRebuild'' obj = (liftEffect $ exists obj.path) >>= (not >>> pure)
   in do
-    objs <- ((object builddir <$> src) # sequence) >>= (sequence >>> pure) :: Aff(Either Error (Array Object))
-    rebuild <- objs >>= (map needsRebuild'' >>> sequence >>> pure) # sequence :: Aff(Either Error (Array Boolean))
-    pure $ zip <$> objs <*> rebuild >>= (filter snd >>> map fst >>> pure)
-
-needsRebuild' :: FilePath -> Cache -> Array FilePath -> Aff (Either Error (Array (Tuple FilePath FilePath)))
-needsRebuild' builddir cache src = do
-  lookup <- (needsRebuild builddir cache src)
-  pure $ lookup >>= (map (\x -> Tuple x.source.path x.path) >>> pure)
+    rebuild <- needsRebuild'' <$> objs # sequence
+    pure $ zip objs rebuild # (filter snd >>> map fst)
 
 build :: forall r. Toolchain r -> FilePath -> Int -> Target -> Aff (Either String (Array (Tuple String String)))
 build toolchain builddir nofThreads target =
   let compiler = mkCompiler toolchain $ compilerConfig target
       compile inputs = parCompile compiler nofThreads inputs
+      needsRebuild' builddir cache objs = needsRebuild builddir cache objs >>=
+                                          map (\x -> Tuple x.source.path x.path) >>> pure
   in do
-    rebuild <- needsRebuild' builddir [] $ sources target
-    case rebuild of
+    o <- objects builddir target
+    case o of
       Left err -> pure $ Left err
-      Right arr -> compile arr
+      Right objs -> do
+        rebuild <- needsRebuild' builddir [] objs
+        compile rebuild
