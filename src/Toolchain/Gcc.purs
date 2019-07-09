@@ -18,15 +18,17 @@ gccCompilerFlagGenerator config input output =
 gccLinkerFlagGenerator :: LinkerFlagGenerator
 gccLinkerFlagGenerator config inputs output =
   let xform x = case x of
+        (LinkLibrary lib) -> ["-l" <> lib]
+        (Entry entry) -> ["--entry", entry]
         (NoLinkerConfiguration) -> []
-  in (concatMap xform config) <> ["-o", output] <> inputs
+  in inputs <> ["-o", output] <> (concatMap xform config)
 
 gccToolchain :: Toolchain ()
 gccToolchain =
   { compiler: "/usr/bin/g++"
   , linker: "/usr/bin/ld"
   , defaultCompilerConfiguration: [DontLink, GenerateDependencyInformation]
-  , defaultLinkerConfiguration: []
+  , defaultLinkerConfiguration: [Entry "main", LinkLibrary "c"]
   , generateCompilerFlags: gccCompilerFlagGenerator
   , generateLinkerFlags: gccLinkerFlagGenerator
   , parseDependencies: gccParseDependencies

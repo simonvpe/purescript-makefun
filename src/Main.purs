@@ -21,6 +21,9 @@ exe = Executable { name: "myapp"
                  , compilerConfig:
                    [ IncludeDirectory "/usr/include"
                    ]
+                 , linkerConfig:
+                   [
+                   ]
                  }
 
 app :: Aff Unit
@@ -33,7 +36,7 @@ app = do
       linkRes <- link gccToolchain builddir exe
       case linkRes of
         Left err -> liftEffect $ log err
-        Right ok -> pure unit
+        Right ok -> liftEffect $ logShow ok
 
 main :: Effect Unit
 main = do

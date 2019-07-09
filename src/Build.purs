@@ -4,7 +4,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Node.Path (FilePath)
 import Prelude
-import Target (Target, sources, compilerConfig)
+import Target (Target, sources, compilerConfig, linkerConfig)
 import Toolchain as TC
 import Node.FS.Sync (exists, readTextFile)
 import Node.Path (concat)
@@ -62,10 +62,11 @@ build toolchain builddir nofThreads target =
         rebuild <- needsRebuild' builddir [] objs
         compile rebuild
 
-link :: forall r. TC.Toolchain r -> FilePath -> Target -> Aff(Either Error Unit)
+link :: forall r. TC.Toolchain r -> FilePath -> Target -> Aff(Either Error FilePath)
 link toolchain builddir target = do
   o <- objects builddir target
   case o of
     Left err -> pure $ Left err
     Right objs -> do
-      pure $ Right unit
+      let extraObjs = ["/lib/crt1.o", "/lib/crti.o", "/lib/crtn.o"]
+      TC.link toolchain (linkerConfig target) ((\x -> x.path) <$> objs # (<>) extraObjs) "exe"

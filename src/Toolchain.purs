@@ -14,6 +14,7 @@ module Toolchain
        , mkCompiler
 --       , dependencies
        , parCompile
+       , link
        ) where
 
 -- import Node.FS.Stats (modifiedTime)
@@ -40,7 +41,7 @@ import Node.FS.Sync (exists, mkdir, readTextFile)
 import Node.FS.Sync.Mkdirp (mkdirp)
 import Node.Path (FilePath, parse, dirname, concat, sep)
 import Node.Stream (onData)
-import Prelude (bind, discard, map, not, pure, show, unit, void, (#), ($), (<), (<$>), (<<<), (<>), (>=>), (*>), unit, Unit)
+import Prelude (bind, discard, map, not, pure, show, unit, void, (#), ($), (<), (<$>), (<<<), (<>), (>=>), (*>), (>>=), (>>>), unit, Unit)
 import Partial.Unsafe (unsafePartial)
 
 data CompilerConfiguration
@@ -57,7 +58,9 @@ type CompilerInput = FilePath
 type CompilerFlagGenerator = Array CompilerConfiguration -> CompilerInput -> CompilerOutput -> Array String
 
 data LinkerConfiguration
-  = NoLinkerConfiguration
+  = LinkLibrary String
+  | Entry String
+  | NoLinkerConfiguration
 
 type LinkerOutput = FilePath
 
@@ -95,6 +98,7 @@ spawnAff cmd args opts = makeAff \cb -> do
   pure <<< effectCanceler <<< void $ kill SIGTERM process
 
 
+exitToString :: String -> Exit -> Either String Boolean
 exitToString file signal = case signal of
   Normally 0 -> true # Right
   Normally r -> "Error: return code " <> show r <> " (" <> file <> ")" # Left
@@ -158,10 +162,15 @@ parCompile compiler nofThreads files =
 --     if not outputDirExists then liftEffect $ mkdirp (dirname output) else pure unit
 --     spawnAff toolchain.compiler args options
 
-link :: forall r. Toolchain r -> Array LinkerConfiguration -> Array FilePath -> FilePath -> Aff Exit
+link :: forall r. Toolchain r -> Array LinkerConfiguration -> Array FilePath -> FilePath -> Aff (Either String FilePath)
 link toolchain extraArgs input output =
   let args = toolchain.generateLinkerFlags (toolchain.defaultLinkerConfiguration <> extraArgs) input output
-  in do pure $ Normally 0
+      options = defaultSpawnOptions { stdio = pipe }
+  in do
+     success <- spawnAff toolchain.linker args options >>= exitToString output >>> pure
+     pure $ case success of
+       Left err -> Left err
+       Right _ -> Right output
 
 -- dependencies :: forall r. Toolchain r -> FilePath -> Aff(Dependency)
 -- dependencies toolchain source =

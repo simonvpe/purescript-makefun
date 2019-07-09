@@ -12,6 +12,7 @@ data Target =
   { name :: TargetName
   , sources :: Array FilePath
   , compilerConfig :: Array Tc.CompilerConfiguration
+  , linkerConfig :: Array Tc.LinkerConfiguration
   }
 
 sources :: Target -> Array FilePath
@@ -21,6 +22,10 @@ sources target = case target of
 compilerConfig :: Target -> Array Tc.CompilerConfiguration
 compilerConfig target = case target of
   Executable e -> e.compilerConfig
+
+linkerConfig :: Target -> Array Tc.LinkerConfiguration
+linkerConfig target = case target of
+  Executable e -> e.linkerConfig
 
 -- dependencies :: forall r. Tc.Toolchain r -> Target -> Aff (Array Tc.Dependency)
 -- dependencies toolchain target =
