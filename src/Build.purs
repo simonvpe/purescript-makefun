@@ -68,5 +68,4 @@ link toolchain builddir target = do
   case o of
     Left err -> pure $ Left err
     Right objs -> do
-      let extraObjs = ["/lib/crt1.o", "/lib/crti.o", "/lib/crtn.o"]
-      TC.link toolchain (linkerConfig target) ((\x -> x.path) <$> objs # (<>) extraObjs) "exe"
+      TC.link toolchain (linkerConfig target) ((\x -> x.path) <$> objs) "exe"

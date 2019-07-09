@@ -47,7 +47,6 @@ import Partial.Unsafe (unsafePartial)
 data CompilerConfiguration
   = DontLink
   | IncludeDirectory FilePath
-  | LibraryDirectory FilePath
   | GenerateDependencyInformation
   | NoCompilerConfiguration
 
@@ -60,6 +59,8 @@ type CompilerFlagGenerator = Array CompilerConfiguration -> CompilerInput -> Com
 data LinkerConfiguration
   = LinkLibrary String
   | Entry String
+  | DynamicLinker String
+  | LibraryDirectory FilePath
   | NoLinkerConfiguration
 
 type LinkerOutput = FilePath
@@ -80,6 +81,7 @@ type Toolchain r =
   , generateCompilerFlags :: CompilerFlagGenerator
   , generateLinkerFlags :: LinkerFlagGenerator
   , parseDependencies :: DependencyParser
+  , extraObjects :: Array LinkerInput
   | r}
 
 -- dependencyListPath :: CompilerInput -> FilePath
@@ -164,7 +166,7 @@ parCompile compiler nofThreads files =
 
 link :: forall r. Toolchain r -> Array LinkerConfiguration -> Array FilePath -> FilePath -> Aff (Either String FilePath)
 link toolchain extraArgs input output =
-  let args = toolchain.generateLinkerFlags (toolchain.defaultLinkerConfiguration <> extraArgs) input output
+  let args = toolchain.generateLinkerFlags (toolchain.defaultLinkerConfiguration <> extraArgs) (input <> toolchain.extraObjects) output
       options = defaultSpawnOptions { stdio = pipe }
   in do
      success <- spawnAff toolchain.linker args options >>= exitToString output >>> pure
