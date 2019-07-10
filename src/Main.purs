@@ -4,7 +4,7 @@ import Build
 import Effect (Effect)
 import Effect.Aff(Aff, launchAff)
 import Effect.Console(log, logShow)
-import Prelude (Unit, void, ($), bind, pure, unit)
+import Prelude (Unit, void, ($), bind)
 import Target (Target(..))
 import Toolchain (CompilerConfiguration(..))
 import Toolchain.Gcc (gccToolchain)
@@ -32,7 +32,7 @@ app = do
   buildRes <- build gccToolchain builddir 8 exe 
   case buildRes of
     Left err -> liftEffect $ log err
-    Right ok -> do
+    Right _ -> do
       linkRes <- link gccToolchain builddir exe
       case linkRes of
         Left err -> liftEffect $ log err

@@ -151,19 +151,6 @@ parCompile compiler nofThreads files =
        right <- files # drop nofThreads # parCompile compiler nofThreads
        pure $ left <> right
 
-
--- compile :: forall r. Toolchain r -> Array CompilerConfiguration -> Tuple CompilerInput CompilerOutput  -> Aff Exit
--- compile toolchain extraArgs inout =
---   let
---     input = fst inout
---     output = snd inout
---     args = toolchain.generateCompilerFlags (toolchain.defaultCompilerConfiguration <> extraArgs) input output
---     options = defaultSpawnOptions { stdio = pipe }
---   in do
---     outputDirExists <- liftEffect $ exists (dirname output)
---     if not outputDirExists then liftEffect $ mkdirp (dirname output) else pure unit
---     spawnAff toolchain.compiler args options
-
 link :: forall r. Toolchain r -> Array LinkerConfiguration -> Array FilePath -> FilePath -> Aff (Either String FilePath)
 link toolchain extraArgs input output =
   let args = toolchain.generateLinkerFlags (toolchain.defaultLinkerConfiguration <> extraArgs) (input <> toolchain.extraObjects) output
