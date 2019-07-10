@@ -5,11 +5,16 @@ const run = require('gulp-run');
 
 const sources = ["src/**/*.purs", ".psc-package/*/*/v*/src/**/*.purs"]
 
-gulp.task("make", () => {
+gulp.task("deps", () => {
+    return run("./node_modules/.bin/psc-package install")
+	.exec();
+});
+
+gulp.task("make", gulp.series("deps", () => {
     return purescript.compile({
         src: sources
     });
-});
+}));
 
 gulp.task("run", gulp.series("make", () => {
     const args = process.argv.slice(3).join(" ");
