@@ -20,6 +20,8 @@ import Prelude
 
 type Error = String
 
+-- TODO: This needs exception handling
+
 aff :: String -> Array String -> SpawnOptions -> (Either Exception.Error Exit -> Effect Unit) -> Effect Canceler
 aff cmd args opts callback = do
   liftEffect $ log $ withGraphics (foreground Green) (intercalate " " $ [cmd] <> args)

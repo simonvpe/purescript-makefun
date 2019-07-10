@@ -1,11 +1,15 @@
-module Target where
+module Target
+       ( Target(..)
+       , TargetName
+       , name
+       , sources
+       , compilerConfig
+       , linkerConfig
+       ) where
 
-import Data.Traversable (traverse)
-import Effect.Aff (Aff)
 import Node.Path (FilePath)
-import Toolchain as Tc
-import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
-import Toolchain.LinkerConfiguration (LinkerConfiguration(..))
+import Toolchain.CompilerConfiguration (CompilerConfiguration)
+import Toolchain.LinkerConfiguration (LinkerConfiguration)
 
 type TargetName = String
 
@@ -16,6 +20,10 @@ data Target =
   , compilerConfig :: Array CompilerConfiguration
   , linkerConfig :: Array LinkerConfiguration
   }
+
+name :: Target -> TargetName
+name target = case target of
+  Executable e -> e.name
 
 sources :: Target -> Array FilePath
 sources target = case target of

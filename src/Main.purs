@@ -1,16 +1,16 @@
 module Main where
 
-import Build
 import Effect (Effect)
 import Effect.Aff(Aff, launchAff)
-import Effect.Console(log, logShow)
+import Effect.Console(log)
+import Effect.Class (liftEffect)
 import Control.Monad.Except.Trans (runExceptT)
-import Prelude (Unit, void, ($), bind)
+import Prelude (Unit, void, ($), bind, discard)
 import Target (Target(..))
 import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
 import Toolchain.Gcc (gccToolchain)
+import Toolchain.Build (build)
 import Data.Either(Either(..))
-import Effect.Class (liftEffect)
 
 exe :: Target
 exe = Executable { name: "myapp"
@@ -30,14 +30,11 @@ exe = Executable { name: "myapp"
 app :: Aff Unit
 app = do
   let builddir = "b"
+  liftEffect $ log "Compiling"
   buildRes <- runExceptT $ build gccToolchain builddir 8 exe
   case buildRes of
     Left err -> liftEffect $ log err
-    Right _ -> do
-      linkRes <- runExceptT $ link gccToolchain builddir exe
-      case linkRes of
-        Left err -> liftEffect $ log err
-        Right ok -> liftEffect $ logShow ok
+    Right _ -> liftEffect $ log "ok"
 
 main :: Effect Unit
 main = do

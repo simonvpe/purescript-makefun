@@ -7,23 +7,23 @@ module Cache
        ) where
 
 import Data.Array (many)
-import Data.Either (Either(..), either)
+import Data.DateTime (DateTime)
+import Data.Either (Either(..))
+import Data.Formatter.DateTime (Formatter, FormatterCommand(..), unformat, format)
+import Data.List (fromFoldable)
+import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (fromCharArray, toCharArray)
+import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), fst, snd)
-import Data.Traversable (sequence, fold)
-import Node.Path (FilePath)
-import Prelude
-import Text.Parsing.Parser (Parser, runParser)
-import Text.Parsing.Parser.String (noneOf, oneOf)
-import Node.FS.Sync (exists, readTextFile, appendTextFile, truncate)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Console (logShow)
 import Node.Encoding (Encoding(UTF8))
-import Data.Formatter.DateTime (Formatter, FormatterCommand(..), unformat, format, parseFormatString)
-import Data.DateTime
-import Data.List (List, fromFoldable)
-import Data.Maybe (Maybe(..))
+import Node.FS.Sync (exists, readTextFile, appendTextFile, truncate)
+import Node.Path (FilePath)
+import Prelude
+import Text.Parsing.Parser (Parser, runParser)
+import Text.Parsing.Parser.String (noneOf, oneOf)
 
 type Hash = String
 type CacheRow = Tuple FilePath DateTime

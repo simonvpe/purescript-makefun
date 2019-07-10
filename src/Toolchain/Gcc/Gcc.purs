@@ -2,7 +2,7 @@ module Toolchain.Gcc (gccToolchain) where
 
 import Data.Array (concatMap)
 import Data.Semigroup ((<>))
-import Toolchain.Gcc.DependencyParser (gccParseDependencies)
+-- import Toolchain.Gcc.DependencyParser (gccParseDependencies)
 import Toolchain (Toolchain(..))
 import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
 import Toolchain.LinkerConfiguration (LinkerConfiguration(..))
