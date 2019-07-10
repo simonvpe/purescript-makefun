@@ -1,0 +1,22 @@
+{
+  "name": "purescript-makefun",
+  "set": "psc-0.13.0",
+  "source": "https://github.com/purescript/package-sets.git",
+  "depends": [
+    "aff",
+    "ansi",
+    "console",
+    "crypto",
+    "effect",
+    "filterable",
+    "formatters",
+    "js-date",
+    "node-child-process",
+    "node-fs",
+    "node-path",
+    "parsing",
+    "prelude",
+    "psci-support",
+    "yargs"
+  ]
+}

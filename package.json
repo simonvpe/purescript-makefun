@@ -1,14 +1,21 @@
 {
+  "bin": "index.js",
+  "name": "funmake",
   "dependencies": {
     "yargs": "^13.2.4"
   },
   "devDependencies": {
+    "gulp": "^4.0.2",
+    "gulp-clean": "^0.4.0",
+    "gulp-purescript": "^2.0.1",
+    "gulp-run": "^1.7.1",
     "parcel-bundler": "^1.12.3",
-    "purescript": "^0.13.0",
-    "purescript-spago": "^0.6.4"
+    "pkg": "^4.4.0",
+    "psc-package": "^3.0.1",
+    "purescript": "^0.13.0"
   },
-  "scripts": {
-    "dev": "spago build && parcel build --target node index.js && node dist/index.js",
-    "build": "spago build && parcel build --target node index.js"
-  }
+  "pkg": {},
+  "keywords": [
+    "gulp"
+  ]
 }
