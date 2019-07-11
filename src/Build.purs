@@ -4,11 +4,11 @@ module Build
        )
        where
 
-import Cache (Cache)
-import Control.Monad.Except.Trans (ExceptT(..), throwError, runExceptT)
+import Control.Monad.Except.Trans (ExceptT(..), throwError, runExceptT, mapExceptT)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (zip, filter)
 import Data.Either(Either(..))
+import Data.Either.Map (mapRight)
 import Data.Maybe (Maybe(..))
 import Data.Monoid (guard)
 import Data.Traversable (sequence)
@@ -21,9 +21,11 @@ import Node.FS.Sync (exists, readTextFile)
 import Node.Path (FilePath, concat)
 import Prelude
 import Target (Target, sources, compilerConfig, linkerConfig)
-import Toolchain as TC
+import Toolchain.Link as Link
+import Toolchain.Compile as Compile
+import Toolchain (Toolchain)
 
-type HeaderRecord = { ptah :: FilePath, hash :: String }
+type HeaderRecord = { path :: FilePath, hash :: String }
 type SourceRecord = { path :: FilePath, hash :: String, headers :: Array (Maybe Header) }
 type ObjectRecord = { source :: Source, path :: FilePath }
 
@@ -43,7 +45,7 @@ loadSource _ path = do
           pure $ Source {path: path, hash: hash, headers: []}
      else
           throwError("Error: file not found (" <> path <> ")")
-  
+
 unSrc :: Source -> SourceRecord
 unSrc (Source x) = x
 
@@ -55,12 +57,6 @@ loadObject builddir headers path =
     let src = un esrc
     pure $ Object { source: Source { path: src.path, hash: src.hash, headers: src.headers }
                   , path: concat [ builddir, src.path <> ".o", src.hash <> ".o"] }
-    -- let k = esrc :: Int
-    -- k
-    -- esrc >>= (\(Source src) ->
-    --            Object { source: Source { path: src.path, hash: src.hash, headers: src.headers }
-    --                   , path: concat [ builddir, src.path <> ".o", src.hash <> ".o"] }) >>> pure
-    --   # pure
 
 unObj :: Object -> ObjectRecord
 unObj (Object x) = x
@@ -69,31 +65,32 @@ loadObjects :: FilePath -> Target -> Array FilePath -> ExceptT Error Aff (Array 
 loadObjects builddir target headers = loadObject builddir headers <$> sources target # sequence
   -- (((runExceptT $ loadObject builddir headers) <$> sources target) # sequence) >>= (sequence >>> pure)
 
-needsRebuild :: FilePath -> Cache -> Array Object -> Aff (Array Object)
-needsRebuild builddir cache objs =
+needsRebuild :: FilePath -> Array Object -> Aff (Array Object)
+needsRebuild builddir objs =
   let needsRebuild'' obj = (liftEffect $ exists obj.path) >>= (not >>> pure)
   in do
     rebuild <- (needsRebuild'' <<< unObj) <$> objs # sequence
     pure $ zip objs rebuild # (filter snd >>> map fst)
 
-build :: forall r. TC.Toolchain r -> FilePath -> Int -> Target -> Aff (Either Error (Array (Tuple String String)))
-build toolchain builddir nofThreads target =
-  let compiler = TC.mkCompiler toolchain $ compilerConfig target
-      compile inputs = TC.parCompile compiler nofThreads inputs
-      needsRebuild' cache objs = needsRebuild builddir cache objs >>=
-                                 map (\(Object x) -> Tuple (unSrc x.source).path x.path) >>> pure
-  in do
-    o <- runExceptT $ loadObjects builddir target []
-    case o of
-      Left err -> pure $ Left err
-      Right objs -> do
-        rebuild <- needsRebuild' [] objs
-        compile rebuild
+toCompileSpec :: Object -> Compile.CompileSpec
+toCompileSpec (Object obj) = Compile.CompileSpec { input: obj.path, output: (unSrc obj.source).path }
 
-link :: forall r. TC.Toolchain r -> FilePath -> Target -> Aff(Either Error FilePath)
-link toolchain builddir target = do
-  o <- runExceptT $ loadObjects builddir target []
-  case o of
-    Left err -> pure $ Left err
-    Right objs -> do
-      TC.link toolchain (linkerConfig target) (((\x -> x.path) <<< unObj) <$> objs) "exe"
+build :: Toolchain -> FilePath -> Int -> Target -> ExceptT Error Aff Unit
+build tc builddir nofThreads target =
+  do
+    objs <- loadObjects builddir target []
+    rebuild <- lift $ needsRebuild builddir objs
+    let spec = toCompileSpec <$> rebuild
+    let compiler = Compile.mkCompiler tc $ compilerConfig target
+    Compile.parCompileN compiler nofThreads spec
+
+xxx :: FilePath -> Aff (Either String Unit) -> Aff (Either String FilePath)
+xxx path aff = aff >>= mapRight (\_ -> path) >>> pure
+
+link :: Toolchain -> FilePath -> Target -> ExceptT Error Aff FilePath
+link tc builddir target =
+  do
+    objs <- loadObjects builddir target []
+    let output = "exec"
+    let spec = Link.LinkSpec { inputs: (((\x -> x.path) <<< unObj)) <$> objs, output: output}
+    mapExceptT (xxx output) $ Link.link tc (linkerConfig target) spec

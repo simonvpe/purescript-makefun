@@ -4,6 +4,8 @@ import Data.Traversable (traverse)
 import Effect.Aff (Aff)
 import Node.Path (FilePath)
 import Toolchain as Tc
+import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
+import Toolchain.LinkerConfiguration (LinkerConfiguration(..))
 
 type TargetName = String
 
@@ -11,19 +13,19 @@ data Target =
   Executable
   { name :: TargetName
   , sources :: Array FilePath
-  , compilerConfig :: Array Tc.CompilerConfiguration
-  , linkerConfig :: Array Tc.LinkerConfiguration
+  , compilerConfig :: Array CompilerConfiguration
+  , linkerConfig :: Array LinkerConfiguration
   }
 
 sources :: Target -> Array FilePath
 sources target = case target of
   Executable e -> e.sources
 
-compilerConfig :: Target -> Array Tc.CompilerConfiguration
+compilerConfig :: Target -> Array CompilerConfiguration
 compilerConfig target = case target of
   Executable e -> e.compilerConfig
 
-linkerConfig :: Target -> Array Tc.LinkerConfiguration
+linkerConfig :: Target -> Array LinkerConfiguration
 linkerConfig target = case target of
   Executable e -> e.linkerConfig
 

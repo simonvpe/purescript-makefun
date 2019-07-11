@@ -3,9 +3,12 @@ module Toolchain.Gcc (gccToolchain) where
 import Data.Array (concatMap)
 import Data.Semigroup ((<>))
 import Toolchain.Gcc.DependencyParser (gccParseDependencies)
-import Toolchain (CompilerConfiguration(..), CompilerFlagGenerator, LinkerConfiguration(..), LinkerFlagGenerator, Toolchain)
+import Toolchain (Toolchain(..))
+import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
+import Toolchain.LinkerConfiguration (LinkerConfiguration(..))
+import Node.Path (FilePath)
 
-gccCompilerFlagGenerator :: CompilerFlagGenerator
+gccCompilerFlagGenerator :: Array CompilerConfiguration -> FilePath -> FilePath -> Array String
 gccCompilerFlagGenerator config input output =
   let xform x = case x of
         (DontLink)                      -> ["-c"]
@@ -14,7 +17,7 @@ gccCompilerFlagGenerator config input output =
         (NoCompilerConfiguration)       -> []
   in (concatMap xform config) <> ["-o", output] <> [input]
 
-gccLinkerFlagGenerator :: LinkerFlagGenerator
+gccLinkerFlagGenerator :: Array LinkerConfiguration -> Array FilePath -> FilePath -> Array String
 gccLinkerFlagGenerator config inputs output =
   let xform x = case x of
         (LinkLibrary lib) -> ["-l" <> lib]
@@ -24,9 +27,9 @@ gccLinkerFlagGenerator config inputs output =
         (NoLinkerConfiguration) -> []
   in inputs <> ["-o", output] <> (concatMap xform config)
 
-gccToolchain :: Toolchain ()
+gccToolchain :: Toolchain
 gccToolchain =
-  { compiler: "/usr/bin/g++"
+  Toolchain { compiler: "/usr/bin/g++"
 
   , linker: "/usr/bin/ld"
 
@@ -45,7 +48,7 @@ gccToolchain =
 
   , generateLinkerFlags: gccLinkerFlagGenerator
 
-  , parseDependencies: gccParseDependencies
+  -- , parseDependencies: gccParseDependencies
 
   , extraObjects:
     [ "/lib/crt1.o"
