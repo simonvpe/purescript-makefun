@@ -18,6 +18,7 @@ exe = Executable { name: "myapp"
                    [ "test-src/a.cpp"
                    , "test-src/b.cpp"
                    , "test-src/c.cpp"
+                   , "test-src/subdir/d.cpp"
                    ]
                  , compilerConfig:
                    [ IncludeDirectory "/usr/include"
