@@ -1,6 +1,7 @@
 module Target.Build (build) where
 
 import Control.Monad.Except.Trans (ExceptT)
+import Control.Monad.Trans.Class (lift)
 import Data.Array (zip, filter)
 import Data.Either(Either)
 import Data.Either.Map (mapRight)
@@ -17,14 +18,17 @@ import Toolchain (Toolchain)
 import Toolchain.Compiler as Compiler
 import Toolchain.Linker as Linker
 
+import Effect.Console (logShow)
+import Effect.Class (liftEffect)
+
 -- |
 -- | Compile the sources of a target, generating the object files.
 -- |
 build :: Toolchain -> FilePath -> Int -> Target -> ExceptT Error Aff Unit
 build tc builddir nofThreads target =
   do
-    objs <- loadObjects (artifactPath builddir target) target []
-
+    objs <- loadObjects (artifactPath builddir target) target
+    lift $ liftEffect $ logShow objs
     let compiler = Compiler.mkCompiler tc $ compilerConfig target
     _ <- makeCompileSpec objs >>= Compiler.parCompileN compiler nofThreads
 
