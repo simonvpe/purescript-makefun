@@ -8,23 +8,21 @@ module Target.Object
        , objectPath
        , sourcePath
        , loadObjects
-       , needsRebuild
        , hash
        ) where
 
 import Control.Monad.Except.Trans (ExceptT)
-import Data.Array (zip, filter, fold)
+import Data.Array (fold)
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Traversable (sequence)
-import Data.Tuple (fst, snd)
 import Effect.Aff (Aff)
 import Node.Crypto.Hash as Hash
 import Node.Crypto.Hash.Except (hex)
 import Node.Encoding(Encoding(UTF8))
-import Node.FS.Sync.Except (exists, readTextFile)
+import Node.FS.Sync.Except (readTextFile)
 import Node.Path (FilePath, concat)
-import Prelude (bind, map, not, pure, (#), ($), (<$>), (<>), (>>=), (>>>))
+import Prelude (bind, pure, (#), ($), (<$>), (<>), (>>=), (>>>))
 import Target
 
 -- | Get the path to the object file
@@ -38,15 +36,6 @@ sourcePath (Object obj) = (unwrap obj.source).path
 -- | Load all objects, given a target
 loadObjects :: FilePath -> Target -> Array FilePath -> ExceptT Error Aff (Array Object)
 loadObjects builddir target headers = loadObject builddir headers <$> sources target # sequence
-
--- | Filter an array of objects, returning only those who needs to be rebuilt.
--- | In order to conclude which needs a rebuild, the file system is inspected.
-needsRebuild :: Array Object -> ExceptT Error Aff (Array Object)
-needsRebuild objs = do
-  rebuild <- needsRebuild'' <$> objs # sequence
-  pure $ zip objs rebuild # (filter snd >>> map fst)
-  where  
-    needsRebuild'' (Object obj) = (exists obj.path) >>= (not >>> pure)
 
 -- | Retrieve the accumulated hash of a set of objects, effectively
 -- | uniquely identifying the set

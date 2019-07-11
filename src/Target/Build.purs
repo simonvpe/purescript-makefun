@@ -1,13 +1,17 @@
 module Target.Build (build) where
 
 import Control.Monad.Except.Trans (ExceptT, mapExceptT)
+import Data.Array (zip, filter)
 import Data.Either(Either)
 import Data.Either.Map (mapRight)
+import Data.Traversable (sequence)
+import Data.Tuple (fst, snd)
 import Effect.Aff (Aff)
+import Node.FS.Sync.Except (exists)
 import Node.Path (FilePath, concat)
-import Prelude (Unit, bind, map, pure, ($), (<$>), (>>=), (>>>))
+import Prelude (Unit, bind, map, pure, not, ($), (<$>), (>>=), (>>>), (#))
 import Target (Target, compilerConfig, linkerConfig, name)
-import Target.Object (Object, loadObjects, needsRebuild, objectPath, sourcePath)
+import Target.Object (Object, loadObjects, objectPath, sourcePath)
 import Toolchain (Toolchain)
 import Toolchain.Compiler as Compiler
 import Toolchain.Linker as Linker
@@ -35,5 +39,12 @@ unitToFilePath path aff = aff >>= mapRight (\_ -> path) >>> pure
 
 linkSpec :: FilePath -> Array Object -> Linker.LinkSpec
 linkSpec output objs = Linker.LinkSpec { inputs: objectPath <$> objs, output: output}
+
+needsRebuild :: Array Object -> ExceptT Error Aff (Array Object)
+needsRebuild objs = do
+  rebuild <- needsRebuild'' <$> objs # sequence
+  pure $ zip objs rebuild # (filter snd >>> map fst)
+  where
+    needsRebuild'' obj = (exists $ objectPath obj) >>= (not >>> pure)
 
 type Error = String
