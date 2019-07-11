@@ -1,5 +1,6 @@
 module Toolchain where
 
+import Data.Either (Either)
 import Data.Newtype (class Newtype)
 import Node.Path (FilePath)
 import Toolchain.CompilerConfiguration (CompilerConfiguration)
@@ -12,7 +13,7 @@ type ToolchainRecord =
   , defaultLinkerConfiguration :: Array LinkerConfiguration
   , generateCompilerFlags :: Array CompilerConfiguration -> FilePath -> FilePath -> Array String
   , generateLinkerFlags :: Array LinkerConfiguration -> Array FilePath -> FilePath -> Array String
-    --  , parseDependencies :: DependencyParser
+  , parseDependencies :: String -> Either String (Array FilePath)
   , extraObjects :: Array FilePath
   }
 newtype Toolchain = Toolchain ToolchainRecord

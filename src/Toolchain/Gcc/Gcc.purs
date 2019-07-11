@@ -2,7 +2,7 @@ module Toolchain.Gcc (gccToolchain) where
 
 import Data.Array (concatMap)
 import Data.Semigroup ((<>))
--- import Toolchain.Gcc.DependencyParser (gccParseDependencies)
+import Toolchain.Gcc.DependencyParser (gccParseDependencies)
 import Toolchain (Toolchain(..))
 import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
 import Toolchain.LinkerConfiguration (LinkerConfiguration(..))
@@ -30,26 +30,19 @@ gccLinkerFlagGenerator config inputs output =
 gccToolchain :: Toolchain
 gccToolchain =
   Toolchain { compiler: "/usr/bin/g++"
-
   , linker: "/usr/bin/ld"
-
   , defaultCompilerConfiguration:
     [ DontLink
     , GenerateDependencyInformation ]
-
   , defaultLinkerConfiguration:
     [ DynamicLinker "/lib/ld-linux-x86-64.so.2"
     , LibraryDirectory "/usr/lib"
     , LibraryDirectory "/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0"
     , LinkLibrary "c"
     , LinkLibrary "stdc++" ]
-
   , generateCompilerFlags: gccCompilerFlagGenerator
-
   , generateLinkerFlags: gccLinkerFlagGenerator
-
-  -- , parseDependencies: gccParseDependencies
-
+  , parseDependencies: gccParseDependencies
   , extraObjects:
     [ "/lib/crt1.o"
     , "/lib/crti.o"
