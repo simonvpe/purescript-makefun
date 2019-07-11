@@ -7,9 +7,9 @@ import Effect.Class (liftEffect)
 import Control.Monad.Except.Trans (runExceptT)
 import Prelude (Unit, void, ($), bind, discard)
 import Target (Target(..))
+import Target.Build (build)
 import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
 import Toolchain.Gcc (gccToolchain)
-import Toolchain.Build (build)
 import Data.Either(Either(..))
 
 exe :: Target

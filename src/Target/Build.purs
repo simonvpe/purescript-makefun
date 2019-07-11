@@ -1,4 +1,4 @@
-module Toolchain.Build (build) where
+module Target.Build (build) where
 
 import Control.Monad.Except.Trans (ExceptT, mapExceptT)
 import Data.Either(Either)
