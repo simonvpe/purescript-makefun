@@ -43,6 +43,7 @@ sourcePath :: Object -> FilePath
 sourcePath (Object obj) = (unwrap obj.source).path
 
 -- | Load all objects, given a target
+-- loadObjects :: forall m. Bind m => MonadAsk Config m => MonadEffect m => m Unit
 loadObjects :: FilePath -> Target -> ExceptT Error Aff (Array Object)
 loadObjects builddir target = loadObject builddir <$> sources target # sequence
 
