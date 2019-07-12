@@ -1,64 +1,52 @@
 module Target.Build (build) where
 
-import Control.Monad.Except.Trans (ExceptT)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Error.Class (class MonadError)
+import App (App, Config(..), Error, ExceptT, ask, cBinaryPath, performError, cSymlinkPath)
 import Data.Array (zip, filter)
 import Data.Either(Either)
 import Data.Either.Map (mapRight)
+import Data.Newtype (unwrap)
 import Data.Traversable (sequence)
 import Data.Tuple (fst, snd)
 import Effect.Aff (Aff)
 import Node.FS (SymlinkType(..))
 import Node.FS.Sync.Except (exists, existsOrMkdir, symlink, unlink)
-import Node.Path (FilePath, concat, dirname, relative)
-import Prelude (Unit, bind, discard, show, map, pure, unit, not, ($), (<$>), (>>=), (>>>), (#), (<>))
-import Target (Target, compilerConfig, linkerConfig, name)
+import Node.Path (FilePath, dirname, relative)
+import Prelude (Unit, bind, discard, map, pure, unit, not, ($), (<$>), (>>=), (>>>), (#))
+import Target (Target, compilerConfig, linkerConfig)
 import Target.Object (Object, loadObjects, objectPath, sourcePath, hash)
-import Toolchain (Toolchain)
 import Toolchain.Compiler as Compiler
 import Toolchain.Linker as Linker
-import Control.Monad.Except.Trans
-import Control.Monad.Reader.Trans
-import Effect.Class
-import Control.Bind (class Bind)
-import Data.Newtype (unwrap)
-import App
-import Effect.Console (logShow)
-import Effect.Class (liftEffect)
 
 -- |
 -- | Compile the sources of a target, generating the object files.
 -- |
-build :: forall m. Bind m => MonadAsk Config m => MonadEffect m => MonadError Error m => m Unit
-build = do
+build :: Target -> App Unit
+build target = do
   config <- ask >>= unwrap >>> pure
-  let target = config.target
-  _ <- throwError("HELP")
-  artifactPath' <- artifactPath target
-  -- objs <- loadObjects artifactPath' target
-  -- lift $ liftEffect $ logShow objs
-  -- let compiler = Compiler.mkCompiler tc $ compilerConfig target
-  -- _ <- makeCompileSpec objs >>= Compiler.parCompileN compiler nofThreads
+  
+  objs <- loadObjects target
+  compiler <- Compiler.mkCompiler (compilerConfig target)
+  _ <- performError $ (makeCompileSpec objs >>= Compiler.parCompileN compiler config.nofCores)
 
-  -- hash' <- hash objs
-  -- let binaryPath' = binaryPath builddir target hash'
-  -- binaryExists <- exists $ binaryPath'
-  -- if binaryExists then pure unit
-  --   else do
-  --        _ <- existsOrMkdir $ dirname binaryPath'
-  --        Linker.link tc (linkerConfig target) (linkSpec binaryPath' objs) >>= (\_ -> pure unit)
-  -- -- if binaryExists
-  -- --   then pure symlinkPath'
-  -- --   else do _ <- existsOrMkdir $ dirname binaryPath'
+  binaryPath <- performError $ hash objs >>= cBinaryPath (Config config) target >>> pure
+  binaryExists <- performError $ exists binaryPath
+  if binaryExists then pure unit else do
+    _ <- performError $ existsOrMkdir $ (dirname binaryPath)
+    Linker.link (linkerConfig target) (linkSpec binaryPath objs) >>= (\_ -> pure unit)
 
-  -- let symlinkPath' = symlinkPath builddir target
-  -- symlinkExists <- exists $ symlinkPath'
-  -- if symlinkExists then unlink symlinkPath' else pure unit
-  -- let symlinkTo = relative (dirname (symlinkPath builddir target)) binaryPath'
-  -- _ <- existsOrMkdir $ dirname symlinkPath'
-  -- _ <- symlink symlinkTo symlinkPath' FileLink
+  _ <- performError $ createSymlink (cSymlinkPath (Config config) target) binaryPath
+
   pure unit
+
+createSymlink :: FilePath -> FilePath -> ExceptT Error Aff Unit
+createSymlink symlinkPath binaryPath = do
+  symlinkExists <- exists symlinkPath
+  if symlinkExists then unlink symlinkPath else pure unit
+  let symlinkTo = relative (dirname symlinkPath) binaryPath
+  _ <- existsOrMkdir $ dirname symlinkPath
+  _ <- symlink symlinkTo symlinkPath FileLink
+  pure unit
+  
 
 compileSpec :: Object -> Compiler.CompileSpec
 compileSpec obj = Compiler.CompileSpec { input: sourcePath obj, output: objectPath obj }
@@ -78,17 +66,3 @@ needsRebuild objs = do
   pure $ zip objs rebuild # (filter snd >>> map fst)
   where
     needsRebuild'' obj = (exists $ objectPath obj) >>= (not >>> pure)
-
-artifactPath :: forall m. Bind m => MonadAsk Config m => Target -> m FilePath
-artifactPath target = do
-  config <- ask >>= unwrap >>> pure
-  pure $ concat [config.buildDir, (name target) <> ".o"]
-
-binaryPath :: FilePath -> Target -> String -> FilePath
-binaryPath builddir target hash' = concat [ builddir
-                                          , (name target) <> ".o"
-                                          , (name target) <> ".o"
-                                          , hash']
-
-symlinkPath :: FilePath -> Target -> FilePath
-symlinkPath builddir target = concat [builddir, name target]

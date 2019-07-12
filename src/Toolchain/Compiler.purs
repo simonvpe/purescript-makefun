@@ -1,5 +1,6 @@
 module Toolchain.Compiler (CompileSpec(..), CompileSpecRecord, mkCompiler, parCompileN) where
 
+import App (App, ask, unwrap)
 import Control.Monad.Except.Trans (ExceptT, throwError, mapExceptT)
 import Control.Parallel (parSequence)
 import Data.Array (take, drop)
@@ -12,15 +13,17 @@ import Effect.Aff.LaunchProcess (launchProcess)
 import Node.ChildProcess (pipe, defaultSpawnOptions)
 import Node.FS.Sync.Except (existsOrMkdir)
 import Node.Path (FilePath, dirname)
-import Prelude
+import Prelude (Unit, bind, pure, unit, (#), ($), (*>), (<), (<$>), (<>), (>>=), (>>>))
 import Toolchain (Toolchain(..), ToolchainRecord)
 import Toolchain.CompilerConfiguration (CompilerConfiguration)
 
 -- |
 -- | Create a compiler that can be passed along to `parCompileN`
 -- |
-mkCompiler :: Toolchain -> Array CompilerConfiguration -> (CompileSpec -> ExceptT String Aff Unit)
-mkCompiler tc cfg = compile tc cfg
+mkCompiler :: Array CompilerConfiguration -> App (CompileSpec -> ExceptT String Aff Unit)
+mkCompiler cfg = do
+  config <- ask >>= unwrap >>> pure
+  pure $ compile config.toolchain cfg
 
 -- |
 -- | Compile a bunch of objects given the compiler specifications and compiler passed. The parallelism

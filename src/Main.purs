@@ -1,13 +1,10 @@
 module Main where
 
-import Effect (Effect)
-import Effect.Aff(Aff, launchAff)
+import Effect.Aff(Fiber, launchAff)
 import Effect.Console(log)
-import Control.Monad.Except.Trans (runExceptT)
-import Prelude (Unit, show, void, ($), bind, discard, pure, unit, (<>))
+import Prelude (Unit, ($), bind, discard, pure, unit)
 import Target (Target(..))
 import Target.Build (build)
-import Toolchain (Toolchain)
 import Toolchain.CompilerConfiguration (CompilerConfiguration(..))
 import Toolchain.Gcc (gccToolchain)
 import Data.Either(Either(..))
@@ -19,7 +16,6 @@ exe = Executable { name: "myapp"
                    [ "test-src/a.cpp"
                    , "test-src/b.cpp"
                    , "test-src/c.cpp"
-                   , "test-src/subdir/d.cpp"
                    ]
                  , compilerConfig:
                    [ IncludeDirectory "/usr/include"
@@ -30,12 +26,12 @@ exe = Executable { name: "myapp"
                  }
 
 config :: Config
-config = Config { toolchain: gccToolchain, buildDir: "b", nofCores: 2, target: exe }
+config = Config { toolchain: gccToolchain, buildDir: "b", nofCores: 2 }
 
-entrypoint :: forall m. Bind m => MonadReader Config m => MonadEffect m => MonadError String m => m Unit
+entrypoint :: App Unit
 entrypoint = do
   cfg <- ask
-  buildRes <- build
+  buildRes <- build exe
   pure unit
 
 -- app :: Aff Unit
@@ -48,7 +44,11 @@ entrypoint = do
 --     Left err -> liftEffect $ log err
 --     Right _ -> liftEffect $ log "ok"
 
-main :: Effect Unit
-main = do
-  result <- launchAff $ run entrypoint config
+main :: Effect (Fiber Unit)
+main = launchAff do
+  result <- run entrypoint config
+  case result of
+    Left err -> liftEffect $ log err
+    Right _ -> liftEffect $ log "ok"
+
   pure unit

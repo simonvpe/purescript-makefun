@@ -13,26 +13,20 @@ module Target.Object
        , hash
        ) where
 
-import Control.Monad.Except.Trans (ExceptT, runExceptT)
-import Control.Monad.Trans.Class (lift)
+import App (class Newtype, App, Error, ExceptT, ask, cDependPath, cObjectPath, performAff, performError, runExceptT, unwrap)
 import Data.Array (fold)
 import Data.Either (Either(..))
-import Data.Either.Map (mapRight)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype, unwrap)
 import Data.Show (class Show)
 import Data.Traversable (sequence)
-import Effect.Class (liftEffect)
 import Effect.Aff (Aff)
 import Node.Crypto.Hash as Hash
 import Node.Crypto.Hash.Except (hex)
 import Node.Encoding(Encoding(UTF8))
 import Node.FS.Sync.Except (readTextFile)
-import Node.Path (FilePath, concat, parse)
-import Prelude (bind, discard, pure, show, (#), ($), (<$>), (<>), (>>=), (>>>))
-import Target
-
-import Effect.Console (logShow)
+import Node.Path (FilePath)
+import Prelude (bind, pure, show, (#), ($), (<$>), (<>), (>>=), (>>>))
+import Target (Target, sources)
 
 -- | Get the path to the object file
 objectPath :: Object -> FilePath
@@ -44,8 +38,8 @@ sourcePath (Object obj) = (unwrap obj.source).path
 
 -- | Load all objects, given a target
 -- loadObjects :: forall m. Bind m => MonadAsk Config m => MonadEffect m => m Unit
-loadObjects :: FilePath -> Target -> ExceptT Error Aff (Array Object)
-loadObjects builddir target = loadObject builddir <$> sources target # sequence
+loadObjects :: Target -> App (Array Object)
+loadObjects target = loadObject target <$> sources target # sequence
 
 -- | Retrieve the accumulated hash of a set of objects, effectively
 -- | uniquely identifying the set
@@ -70,27 +64,24 @@ newtype Depend = Depend DependRecord
 newtype Source = Source SourceRecord
 newtype Object = Object ObjectRecord
 
-type Error = String
-
 unSource :: Source -> SourceRecord
 unSource (Source src) = src
 
-object :: FilePath -> Source -> Object
-object builddir (Source src) =
-  Object { source: Source src, path: concat [ builddir, src.path <> ".o", src.hash <> ".o" ]}
+object :: Target -> Source -> App Object
+object target (Source src) = do
+  config <- ask
+  pure $ Object { source: Source src, path: cObjectPath config target src.path src.hash }
 
-loadObject :: FilePath -> FilePath -> ExceptT Error Aff Object
-loadObject builddir path = loadSource builddir path >>= object builddir >>> pure
+loadObject :: Target -> FilePath -> App Object
+loadObject target path = loadSource target path >>= object target
 
-loadSource :: FilePath -> FilePath -> ExceptT Error Aff Source
-loadSource builddir path = do
-  contents   <- readTextFile UTF8 path
-  hashResult <- hex Hash.MD5 contents
-  deps       <- lift $ loadDepend (dependPath builddir path hashResult)
+loadSource :: Target -> FilePath -> App Source
+loadSource target path = do
+  config <- ask
+  contents <- performError $ readTextFile UTF8 path
+  hashResult <- performError $ hex Hash.MD5 contents
+  deps <- performAff $ loadDepend (cDependPath config target path hashResult)
   pure $ Source {path: path, hash: hashResult, dependencies: deps}
-
-dependPath :: FilePath -> FilePath -> String -> FilePath
-dependPath builddir srcPath srcHash = concat [builddir, srcPath <> ".o", srcHash <> ".d" ]
 
 eitherToMaybe :: forall a e. Either e a -> Maybe a
 eitherToMaybe (Left _)  = Nothing
