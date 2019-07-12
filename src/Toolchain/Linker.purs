@@ -16,8 +16,8 @@ import Toolchain.LinkerConfiguration (LinkerConfiguration)
 link :: Array LinkerConfiguration -> LinkSpec -> App Unit
 link cfg (LinkSpec spec) = do
   config <- ask >>= unwrap >>> pure
-  let tc = config.toolchain
-      launch' = launchProcess (unwrap tc).linker (genLinkArgs tc cfg spec) (defaultSpawnOptions { stdio = pipe })
+  let tc = unwrap config.toolchain
+      launch' = launchProcess tc.linker (genLinkArgs config.toolchain cfg spec) (defaultSpawnOptions { stdio = pipe })
   performError $ existsOrMkdir (dirname spec.output) *> launch'
 
 -- |

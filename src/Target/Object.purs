@@ -14,6 +14,7 @@ module Target.Object
        ) where
 
 import App (class Newtype, App, Error, ExceptT, ask, cDependPath, cObjectPath, performAff, performError, runExceptT, unwrap)
+import Control.Monad.Except.Trans (except)
 import Data.Array (fold)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -51,7 +52,7 @@ hash objs = fold hashes # hex Hash.MD5
 type HeaderRecord = { path :: FilePath, hash :: String }
 
 -- | Specifies the path to a bunch of headers, the dependency file itself, and its hash
-type DependRecord = { path :: FilePath, hash :: String }
+type DependRecord = { path :: FilePath, hash :: String, headers :: Array Header }
 
 -- | Specifies the path to a source file, its hash, and any headers it depends on
 type SourceRecord = { path :: FilePath, hash :: String, dependencies :: Maybe Depend }
@@ -80,30 +81,47 @@ loadSource target path = do
   config <- ask
   contents <- performError $ readTextFile UTF8 path
   hashResult <- performError $ hex Hash.MD5 contents
-  deps <- performAff $ loadDepend (cDependPath config target path hashResult)
+  deps <- loadDepend (cDependPath config target path hashResult)
   pure $ Source {path: path, hash: hashResult, dependencies: deps}
 
 eitherToMaybe :: forall a e. Either e a -> Maybe a
 eitherToMaybe (Left _)  = Nothing
 eitherToMaybe (Right v) = Just v
 
-loadDepend :: FilePath -> Aff (Maybe Depend)
-loadDepend path = (readDepend path # runExceptT) >>= eitherToMaybe >>> pure
+loadDepend :: FilePath -> App (Maybe Depend)
+loadDepend path = do
+  config <- ask >>= unwrap >>> pure
+  let parser = (unwrap config.toolchain).parseDependencies
+  performAff $ (readDepend path parser # runExceptT) >>= eitherToMaybe >>> pure
 
-readDepend :: FilePath -> ExceptT Error Aff Depend
-readDepend path = do
+readDepend :: FilePath -> (String -> Either Error (Array FilePath)) -> ExceptT Error Aff Depend
+readDepend path parse = do
   contents <- readTextFile UTF8 path
   hashResult <- hex Hash.MD5 contents
-  pure $ Depend {path: path, hash: hashResult }
+  headerPaths <- except $ parse contents
+  headers <- readHeader <$> headerPaths # sequence
+  pure $ Depend {path: path, hash: hashResult, headers: headers }
+
+readHeader :: FilePath -> ExceptT Error Aff Header
+readHeader path = do
+  contents <- readTextFile UTF8 path
+  hashResult <- hex Hash.MD5 contents
+  pure $ Header {path: path, hash: hashResult }
 
 derive instance newtypeHeader :: Newtype Header _
 derive instance newtypeDepend :: Newtype Depend _
 derive instance newtypeSource :: Newtype Source _
 derive instance newtypeObject :: Newtype Object _
 
+instance showHeader :: Show Header where
+  show (Header h) = "{path: " <> show h.path
+                    <> ", hash: " <> show h.hash
+                    <> "}"
+
 instance showDepend :: Show Depend where
   show (Depend d) = "{path: " <> show d.path
                     <> ", hash: " <> show d.hash
+                    <> ", headers: " <> show d.headers
                     <> "}"
 
 instance showSource :: Show Source where

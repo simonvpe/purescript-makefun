@@ -1,6 +1,6 @@
 module Target.Build (build) where
 
-import App (App, Config(..), Error, ExceptT, ask, cBinaryPath, performError, cSymlinkPath)
+import App (App, Config(..), Error, ExceptT, ask, cBinaryPath, performError, cSymlinkPath, performEffect)
 import Data.Array (zip, filter)
 import Data.Either(Either)
 import Data.Either.Map (mapRight)
@@ -8,6 +8,7 @@ import Data.Newtype (unwrap)
 import Data.Traversable (sequence)
 import Data.Tuple (fst, snd)
 import Effect.Aff (Aff)
+import Effect.Console (logShow)
 import Node.FS (SymlinkType(..))
 import Node.FS.Sync.Except (exists, existsOrMkdir, symlink, unlink)
 import Node.Path (FilePath, dirname, relative)
@@ -25,18 +26,28 @@ build target = do
   config <- ask >>= unwrap >>> pure
   
   objs <- loadObjects target
-  compiler <- Compiler.mkCompiler (compilerConfig target)
-  _ <- performError $ (makeCompileSpec objs >>= Compiler.parCompileN compiler config.nofCores)
+  performEffect $ logShow objs
 
+  _ <- runCompiler target objs
+  _ <- runLinker target objs
+
+  pure unit
+
+runLinker :: Target -> Array Object -> App Unit
+runLinker target objs = do
+  config <- ask >>= unwrap >>> pure
   binaryPath <- performError $ hash objs >>= cBinaryPath (Config config) target >>> pure
   binaryExists <- performError $ exists binaryPath
   if binaryExists then pure unit else do
     _ <- performError $ existsOrMkdir $ (dirname binaryPath)
     Linker.link (linkerConfig target) (linkSpec binaryPath objs) >>= (\_ -> pure unit)
+  performError $ createSymlink (cSymlinkPath (Config config) target) binaryPath
 
-  _ <- performError $ createSymlink (cSymlinkPath (Config config) target) binaryPath
-
-  pure unit
+runCompiler :: Target -> Array Object -> App Unit
+runCompiler target objs = do
+  config <- ask >>= unwrap >>> pure
+  compiler <- Compiler.mkCompiler (compilerConfig target)
+  performError $ (makeCompileSpec objs >>= Compiler.parCompileN compiler config.nofCores)
 
 createSymlink :: FilePath -> FilePath -> ExceptT Error Aff Unit
 createSymlink symlinkPath binaryPath = do
