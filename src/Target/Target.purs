@@ -5,11 +5,13 @@ module Target
        , sources
        , compilerConfig
        , linkerConfig
+       , buildType
        ) where
 
 import Node.Path (FilePath)
 import Toolchain.CompilerConfiguration (CompilerConfiguration)
 import Toolchain.LinkerConfiguration (LinkerConfiguration)
+import Toolchain as Toolchain
 
 type TargetName = String
 
@@ -36,6 +38,10 @@ compilerConfig target = case target of
 linkerConfig :: Target -> Array LinkerConfiguration
 linkerConfig target = case target of
   Executable e -> e.linkerConfig
+
+buildType :: Target -> Toolchain.BuildType
+buildType target = case target of
+  Executable _ -> Toolchain.Executable
 
 -- dependencies :: forall r. Tc.Toolchain r -> Target -> Aff (Array Tc.Dependency)
 -- dependencies toolchain target =

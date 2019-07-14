@@ -2,6 +2,7 @@
   "bin": "index.js",
   "name": "funmake",
   "dependencies": {
+    "big-integer": "^1.6.44",
     "yargs": "^13.2.4"
   },
   "devDependencies": {

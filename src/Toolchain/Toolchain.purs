@@ -6,11 +6,16 @@ import Node.Path (FilePath)
 import Toolchain.CompilerConfiguration (CompilerConfiguration)
 import Toolchain.LinkerConfiguration (LinkerConfiguration)
 
+data BuildType
+  = SharedLibrary
+  | StaticLibrary
+  | Executable
+
 type ToolchainRecord =
-  { compiler :: FilePath
-  , linker :: FilePath
-  , defaultCompilerConfiguration :: Array CompilerConfiguration
-  , defaultLinkerConfiguration :: Array LinkerConfiguration
+  { compiler :: BuildType -> FilePath
+  , linker :: BuildType -> FilePath
+  , defaultCompilerConfiguration :: BuildType -> Array CompilerConfiguration
+  , defaultLinkerConfiguration :: BuildType -> Array LinkerConfiguration
   , generateCompilerFlags :: Array CompilerConfiguration -> FilePath -> FilePath -> Array String
   , generateLinkerFlags :: Array LinkerConfiguration -> Array FilePath -> FilePath -> Array String
   , parseDependencies :: String -> Either String (Array FilePath)

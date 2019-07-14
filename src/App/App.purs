@@ -22,7 +22,7 @@ module App
 
 -- | https://thoughtbot.com/blog/refactoring-to-a-monad-transformer-stack
 
-import App.Config (Config(..), cArtifactsPath, cBinaryPath, cDependPath, cObjectPath, cSymlinkPath)
+import App.Config (Config(..), cArtifactsPath, cBinaryPath, cDependPath, cObjectPath, cSymlinkPath, cChecksumPath)
 import Control.Bind (class Bind)
 import Control.Monad.Error.Class (class MonadError)
 import Control.Monad.Except.Trans (ExceptT, class MonadError, class MonadThrow, runExceptT, throwError)

@@ -3,6 +3,7 @@ module Node.FS.Sync.Except
        , mkdirp
        , existsOrMkdir
        , readTextFile
+       , writeTextFile
        , symlink
        , unlink
        ) where
@@ -32,6 +33,9 @@ existsOrMkdir path = exists path >>= (\e -> if e then pure unit else mkdirp path
 
 readTextFile :: Encoding -> FilePath -> ExceptT String Aff String
 readTextFile enc path = mapToExceptT $ Fs.readTextFile enc path
+
+writeTextFile :: Encoding -> FilePath -> String -> ExceptT String Aff Unit
+writeTextFile enc path content = mapToExceptT $ Fs.writeTextFile enc path content
 
 symlink :: FilePath -> FilePath -> SymlinkType -> ExceptT String Aff Unit
 symlink target path t = mapToExceptT $ Fs.symlink target path t

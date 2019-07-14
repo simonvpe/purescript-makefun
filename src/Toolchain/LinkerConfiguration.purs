@@ -7,4 +7,5 @@ data LinkerConfiguration
   | Entry String
   | DynamicLinker String
   | LibraryDirectory FilePath
+  | LRaw (Array String)
   | NoLinkerConfiguration

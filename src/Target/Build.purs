@@ -1,20 +1,22 @@
 module Target.Build (build) where
 
-import App (App, Config(..), Error, ExceptT, ask, cBinaryPath, performError, cSymlinkPath, performEffect)
+import App (App, Config(..), Error, ExceptT, ask, cBinaryPath, performError, cSymlinkPath)
 import Data.Array (zip, filter)
 import Data.Either(Either)
 import Data.Either.Map (mapRight)
+import Data.Eq ((/=))
+import Data.HeytingAlgebra ((||))
 import Data.Newtype (unwrap)
 import Data.Traversable (sequence)
 import Data.Tuple (fst, snd)
 import Effect.Aff (Aff)
-import Effect.Console (logShow)
 import Node.FS (SymlinkType(..))
 import Node.FS.Sync.Except (exists, existsOrMkdir, symlink, unlink)
 import Node.Path (FilePath, dirname, relative)
 import Prelude (Unit, bind, discard, map, pure, unit, not, ($), (<$>), (>>=), (>>>), (#))
-import Target (Target, compilerConfig, linkerConfig)
-import Target.Object (Object, loadObjects, objectPath, sourcePath, hash)
+import Target (Target,  compilerConfig, linkerConfig, buildType)
+import Target.Hash (xor')
+import Target.Object (Object, loadObjects, objectPath, sourcePath, writeChecksum, sourceHash, dependHash, checksum, checksum')
 import Toolchain.Compiler as Compiler
 import Toolchain.Linker as Linker
 
@@ -23,31 +25,42 @@ import Toolchain.Linker as Linker
 -- |
 build :: Target -> App Unit
 build target = do
+  let buildType' = buildType target
   config <- ask >>= unwrap >>> pure
-  
+
   objs <- loadObjects target
-  performEffect $ logShow objs
 
   _ <- runCompiler target objs
-  _ <- runLinker target objs
+  withDependencies <- loadObjects target
+  withChecksums <- updateChecksums target withDependencies
+  _ <- runLinker target withChecksums
 
   pure unit
 
+runCompiler :: Target -> Array Object -> App Unit
+runCompiler target objs = do
+  let buildType' = buildType target
+  config <- ask >>= unwrap >>> pure
+  compileSpec' <- performError $ makeCompileSpec objs
+  let compileConfig = Compiler.Config { toolchain: config.toolchain
+                                      , configuration: compilerConfig target
+                                      , buildType: buildType target
+                                      , nofCores: config.nofCores }
+  performError $ Compiler.parCompileN compileConfig compileSpec'
+
 runLinker :: Target -> Array Object -> App Unit
 runLinker target objs = do
+  let buildType' = buildType target
   config <- ask >>= unwrap >>> pure
-  binaryPath <- performError $ hash objs >>= cBinaryPath (Config config) target >>> pure
+  let binaryPath = cBinaryPath (Config config) target (checksum' objs)
   binaryExists <- performError $ exists binaryPath
   if binaryExists then pure unit else do
     _ <- performError $ existsOrMkdir $ (dirname binaryPath)
-    Linker.link (linkerConfig target) (linkSpec binaryPath objs) >>= (\_ -> pure unit)
+    Linker.link buildType' (linkerConfig target) (linkSpec binaryPath objs) >>= (\_ -> pure unit)
   performError $ createSymlink (cSymlinkPath (Config config) target) binaryPath
 
-runCompiler :: Target -> Array Object -> App Unit
-runCompiler target objs = do
-  config <- ask >>= unwrap >>> pure
-  compiler <- Compiler.mkCompiler (compilerConfig target)
-  performError $ (makeCompileSpec objs >>= Compiler.parCompileN compiler config.nofCores)
+updateChecksums :: Target -> Array Object -> App (Array Object)
+updateChecksums target objs = writeChecksum target <$> objs # sequence
 
 createSymlink :: FilePath -> FilePath -> ExceptT Error Aff Unit
 createSymlink symlinkPath binaryPath = do
@@ -57,7 +70,6 @@ createSymlink symlinkPath binaryPath = do
   _ <- existsOrMkdir $ dirname symlinkPath
   _ <- symlink symlinkTo symlinkPath FileLink
   pure unit
-  
 
 compileSpec :: Object -> Compiler.CompileSpec
 compileSpec obj = Compiler.CompileSpec { input: sourcePath obj, output: objectPath obj }
@@ -76,4 +88,6 @@ needsRebuild objs = do
   rebuild <- needsRebuild'' <$> objs # sequence
   pure $ zip objs rebuild # (filter snd >>> map fst)
   where
-    needsRebuild'' obj = (exists $ objectPath obj) >>= (not >>> pure)
+    needsRebuild'' obj = do
+      objExists <- exists $ objectPath obj
+      pure $ not objExists || ((xor' (sourceHash obj) (dependHash obj)) /= checksum obj)

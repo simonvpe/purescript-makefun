@@ -6,4 +6,5 @@ data CompilerConfiguration
   = DontLink
   | IncludeDirectory FilePath
   | GenerateDependencyInformation
+  | CRaw (Array String)
   | NoCompilerConfiguration

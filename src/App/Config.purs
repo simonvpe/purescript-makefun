@@ -39,3 +39,9 @@ cSymlinkPath :: Config -> Target -> FilePath
 cSymlinkPath (Config config) target =
   concat [root, name target]
   where root = cArtifactsPath (Config config) target
+
+cChecksumPath :: Config -> Target -> FilePath -> String -> FilePath
+cChecksumPath (Config config) target srcPath srcHash =
+  concat [root, subdir, srcHash <> ".k"]
+  where root = cArtifactsPath (Config config) target
+        subdir = concat [dirname srcPath, basename srcPath <> ".o"]

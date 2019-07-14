@@ -5,6 +5,7 @@
   "depends": [
     "aff",
     "ansi",
+    "bigints",
     "console",
     "crypto",
     "effect",
