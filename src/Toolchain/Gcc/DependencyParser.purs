@@ -1,27 +1,45 @@
-module Toolchain.Gcc.DependencyParser (gccParseDependencies) where
+module Toolchain.Gcc.DependencyParser where
 
-import Data.Array (filter, many)
+import Control.Alt ((<|>))
+import Data.Array (filter)
 import Data.Either (Either(..))
+import Data.Either.Map (mapLeft)
 import Data.List (toUnfoldable)
+import Data.List.Types (toList)
+import Data.Monoid (mempty)
 import Data.String.CodeUnits (fromCharArray, toCharArray)
 import Data.Tuple (Tuple(..))
 import Node.Path (FilePath)
-import Prelude (bind, pure, show, (#), ($), (*>), (/=), (<$>))
-import Text.Parsing.Parser (runParser)
-import Text.Parsing.Parser.Combinators (many1Till)
-import Text.Parsing.Parser.String (anyChar, noneOf, oneOf, string)
+import Prelude (bind, pure, show, unit, (#), ($), (*>), (<*), (/=), (<$>), (>>=), (>>>))
+import Text.Parsing.StringParser (Parser, runParser)
+import Text.Parsing.StringParser.Combinators (many, many1, many1Till, manyTill, lookAhead)
+import Text.Parsing.StringParser.CodeUnits (anyChar, noneOf, oneOf, string, char, satisfy)
 
 gccParseDependencies :: String -> Either String (Array FilePath)
-gccParseDependencies content =
-  let colon = string ":"
-      whitespace = toCharArray " \r\n\t\\"
-      target = do
-        res <- many1Till anyChar colon
-        toUnfoldable res # fromCharArray # pure
-      filename = do
-        res <- (oneOf whitespace) *> (many $ noneOf whitespace)
-        res # fromCharArray # pure
-      parser = target *> filename *> (filter (\y -> y /= "") <$> many filename)
-  in case runParser content $ parser of
-    Left err -> show err # Left
-    Right res -> res # Right
+gccParseDependencies content = runParser rule content # mapLeft show
+
+rule :: Parser (Array String)
+rule = target *> dependency *> many dependency
+       >>= toUnfoldable >>> pure
+
+target :: Parser (String)
+target = (many $ char ' ')
+         *> (manyTill anyChar $ char ':')
+         <* (many $ char ' ')
+         >>= toUnfoldable >>> fromCharArray >>> pure
+
+dependency :: Parser (String)
+dependency = sameLine <|> newLine
+
+sameLine :: Parser (String)
+sameLine = (many $ char ' ')
+           *> (many1 $ noneOf [' ', '\\', '\n'])
+           <* (many $ char ' ')
+           >>= toList >>> toUnfoldable >>> fromCharArray >>> pure
+
+newLine :: Parser (String)
+newLine = (many $ char ' ')
+          *> string "\\\n"
+          *> (many $ char ' ')
+          *> (many1 $ noneOf [' ', '\\', '\n'])
+          >>= toList >>> toUnfoldable >>> fromCharArray >>> pure

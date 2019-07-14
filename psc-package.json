@@ -16,9 +16,9 @@
     "node-child-process",
     "node-fs",
     "node-path",
-    "parsing",
     "prelude",
     "psci-support",
+    "string-parsers",
     "yargs"
   ]
 }
