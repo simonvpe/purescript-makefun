@@ -18,10 +18,10 @@ gccParseDependencies content =
       target = do
         res <- many1Till anyChar colon
         toUnfoldable res # fromCharArray # pure
-      dependency = do
+      filename = do
         res <- (oneOf whitespace) *> (many $ noneOf whitespace)
         res # fromCharArray # pure
-      parser = target *> (filter (\y -> y /= "") <$> many dependency)
+      parser = target *> filename *> (filter (\y -> y /= "") <$> many filename)
   in case runParser content $ parser of
     Left err -> show err # Left
     Right res -> res # Right
