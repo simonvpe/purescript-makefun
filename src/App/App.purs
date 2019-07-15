@@ -18,10 +18,12 @@ module App
        , module Effect.Aff
        , module Effect.Class
        , module Effect
+       , module Prelude
        ) where
 
 -- | https://thoughtbot.com/blog/refactoring-to-a-monad-transformer-stack
 
+import Prelude
 import App.Config (Config(..), cArtifactsPath, cBinaryPath, cDependPath, cObjectPath, cSymlinkPath, cChecksumPath)
 import Control.Bind (class Bind)
 import Control.Monad.Error.Class (class MonadError)
@@ -34,7 +36,6 @@ import Data.Newtype (class Newtype, unwrap)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect, liftEffect)
-import Prelude (class Applicative, class Apply, class Bind, class Functor, class Monad, ($), (>>>))
 
 type Error = String
 

@@ -68,7 +68,6 @@ writeChecksum target obj =
     source' = Source $ (unwrap $ (unwrap obj).source) {checksum = Just cs'}
     path' = objectPath obj
 
-        
 -- | Load all objects, given a target
 loadObjects :: Target -> App (Array Object)
 loadObjects target = loadObject <$> sources target # sequence
@@ -93,7 +92,7 @@ loadObjects target = loadObject <$> sources target # sequence
         object (Source src) = do
           config <- ask
           pure $ Object { source: Source src, path: cObjectPath config target src.path src.hash }
-        
+
     loadDepend :: FilePath -> App (Maybe Depend)
     loadDepend path =
       do

@@ -11,7 +11,7 @@ import Node.Path (FilePath)
 gccCompilerFlagGenerator :: Array CompilerConfiguration -> FilePath -> FilePath -> Array String
 gccCompilerFlagGenerator config input output =
   let xform x = case x of
-        CRaw args                     -> args        
+        CRaw args                     -> args
         DontLink                      -> ["-c"]
         IncludeDirectory path         -> ["-I", path]
         GenerateDependencyInformation -> ["-MMD"]
@@ -21,7 +21,7 @@ gccCompilerFlagGenerator config input output =
 gccLinkerFlagGenerator :: Array LinkerConfiguration -> Array FilePath -> FilePath -> Array String
 gccLinkerFlagGenerator config inputs output =
   let xform x = case x of
-        LRaw args             -> args        
+        LRaw args             -> args
         LinkLibrary lib       -> ["-l" <> lib]
         Entry entry           -> ["--entry", entry]
         DynamicLinker linker  -> ["-dynamic-linker", linker]
@@ -31,7 +31,7 @@ gccLinkerFlagGenerator config inputs output =
 
 gccCompiler :: Toolchain.BuildType -> FilePath
 gccCompiler buildType = case buildType of
-  Toolchain.Executable    -> "libtool"
+  Toolchain.Executable    -> "g++"
   Toolchain.SharedLibrary -> "libtool"
   Toolchain.StaticLibrary -> "libtool"
 
@@ -43,7 +43,7 @@ gccLinker buildType = case buildType of
 
 gccDefaultCompilerConfiguration :: Toolchain.BuildType -> Array CompilerConfiguration
 gccDefaultCompilerConfiguration buildType = case buildType of
-  Toolchain.Executable    -> [CRaw ["--mode=compile", "--tag=CXX", "--silent", "g++"], DontLink, GenerateDependencyInformation]
+  Toolchain.Executable    -> [DontLink, GenerateDependencyInformation]
   Toolchain.SharedLibrary -> []
   Toolchain.StaticLibrary -> []
 
